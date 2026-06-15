@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ChevronLeft, Info, Footprints, Train, TrainFront, Car, Bus } from 'lucide-react'
+import { ChevronLeft, Info, Footprints, Train, TrainFront, Car, Bus, Moon } from 'lucide-react'
 import { AppLayout } from '@/components/marg/AppLayout'
 import MapComponent from '@/components/marg/MapComponent'
 import { RouteCard } from '@/components/marg/RouteCard'
@@ -73,10 +73,16 @@ export default function Results() {
   const [routes, setRoutes] = useState([])
   const [zones, setZones] = useState([])
   const [loading, setLoading] = useState(true)
+  // True once a load has been slow for a few seconds — on the deployed free
+  // backend (Render) the first request cold-starts ~30–60s, so we reassure
+  // instead of showing frozen-looking skeletons.
+  const [slowLoad, setSlowLoad] = useState(false)
   const [fallbackLine, setFallbackLine] = useState(null)
   const [sort, setSort] = useState('safest')
   // Set when the user taps a mode chip on Home (Bus/Metro/Train/Auto).
   const [modeFilter, setModeFilter] = useState(restored?.mode || null)
+  // The backend's IST hour for this result, so we can explain late-night gaps.
+  const [serverHour, setServerHour] = useState(null)
 
   useEffect(() => {
     setSort(safeMode ? 'safest' : 'fastest')
@@ -91,13 +97,17 @@ export default function Results() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setSlowLoad(false)
+    const slowTimer = setTimeout(() => !cancelled && setSlowLoad(true), 6000)
     // The backend restricts to `modeFilter` (so Train never returns metro, etc.).
     Promise.all([
       fetchRoutes(origin, destination, safeMode, modeFilter, departMin).catch(() => null),
       fetchHeatmap(),
     ]).then(async ([routesData, zonesData]) => {
+      clearTimeout(slowTimer)
       if (cancelled) return
       setZones(zonesData)
+      setServerHour(Number.isInteger(routesData?.hour) ? routesData.hour : null)
       if (routesData?.routes) {
         // Backend responded (array, possibly empty for a mode with no service).
         setRoutes(routesData.routes)
@@ -114,6 +124,7 @@ export default function Results() {
     })
     return () => {
       cancelled = true
+      clearTimeout(slowTimer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin.lat, origin.lng, destination.lat, destination.lng, safeMode, modeFilter, departMin])
@@ -128,6 +139,14 @@ export default function Results() {
 
   const noneForMode = !loading && modeFilter && sorted.length === 0
   const mapCoords = sorted[0]?.coordinates?.length ? sorted[0].coordinates : fallbackLine
+
+  // Late-night context: metro/suburban/bus stop running ~11pm–4:30am, so the
+  // honest reason for "only autos" (or no result for a transit mode) is the
+  // hour, not coverage. Drive the messaging off the backend's IST hour.
+  const hasTransit = sorted.some((r) => r.modes?.some((m) => m === 'metro' || m === 'train' || m === 'bus'))
+  const lateNight = serverHour != null && (serverHour >= 23 || serverHour < 5)
+  const transitClosed = !loading && !modeFilter && sorted.length > 0 && !hasTransit && lateNight
+  const modeClosedAtNight = lateNight && (modeFilter === 'metro' || modeFilter === 'train' || modeFilter === 'bus')
 
   return (
     <AppLayout chat map={<MapComponent route={mapCoords} heatmapZones={zones} />}>
@@ -188,17 +207,40 @@ export default function Results() {
         </div>
       )}
 
+      {/* Late-night explainer so "only autos" doesn't look like a bug */}
+      {transitClosed && (
+        <div className="mx-4 mb-1 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <Moon className="mt-0.5 size-4 shrink-0 text-gold-600" />
+          <p className="text-xs text-marg-muted">
+            <span className="font-semibold text-marg-text">It&apos;s late.</span> Metro and suburban
+            trains run roughly 4:30 AM–11 PM and buses are limited overnight, so these are auto
+            options. Turn on Women Safety Mode for night-travel guidance.
+          </p>
+        </div>
+      )}
+
       {/* Cards */}
       <div className="flex flex-col gap-3 px-4 pb-2">
         {loading ? (
-          [0, 1, 2].map((i) => (
-            <div key={i} className="h-32 animate-pulse rounded-2xl border border-marg-border bg-white" />
-          ))
+          <>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-32 animate-pulse rounded-2xl border border-marg-border bg-white" />
+            ))}
+            {slowLoad && (
+              <p className="pt-1 text-center text-xs text-marg-muted">
+                Waking up the free server — the first search can take up to a minute…
+              </p>
+            )}
+          </>
         ) : noneForMode ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center">
-            <p className="font-semibold text-marg-text">No {cap(modeFilter)} route for this trip</p>
+            <p className="font-semibold text-marg-text">
+              {modeClosedAtNight ? `${cap(modeFilter)} has stopped for the night` : `No ${cap(modeFilter)} route for this trip`}
+            </p>
             <p className="mt-1 text-sm text-marg-muted">
-              {cap(modeFilter)} doesn’t serve this origin → destination (likely outside its coverage). Try another mode.
+              {modeClosedAtNight
+                ? `${cap(modeFilter)} doesn’t run at this hour (service is roughly 4:30 AM–11 PM). Try Auto, or check back in the morning.`
+                : `${cap(modeFilter)} doesn’t serve this origin → destination (likely outside its coverage). Try another mode.`}
             </p>
             <button
               type="button"

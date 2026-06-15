@@ -12,9 +12,22 @@ export function BackendBanner() {
 
   useEffect(() => {
     let active = true
-    const ping = () => checkBackend().then((ok) => active && setDown(!ok))
+    let misses = 0
+    const ping = async () => {
+      const ok = await checkBackend()
+      if (!active) return
+      if (ok) {
+        misses = 0
+        setDown(false)
+      } else {
+        // Render's free tier cold-starts (~30–60s). Don't flash "unreachable" on
+        // the first miss — only after several consecutive ones while it wakes.
+        misses += 1
+        if (misses >= 3) setDown(true)
+      }
+    }
     ping()
-    const id = setInterval(ping, 30000)
+    const id = setInterval(ping, 10000)
     return () => {
       active = false
       clearInterval(id)

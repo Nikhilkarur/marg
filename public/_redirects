@@ -1,0 +1,4 @@
+# Netlify SPA fallback: serve index.html for every client-side route so deep
+# links and refreshes (/home, /results, /map, /trips, /profile) don't 404.
+# Vite copies this from public/ into dist/, which is Netlify's publish dir.
+/*    /index.html   200
