@@ -31,7 +31,7 @@ export async function checkBackend(timeoutMs = 4000) {
 
 /** Fetch multi-modal routes from the backend. `mode` (optional) restricts to a
  *  single mode (metro/train/bus/auto) so the backend routes over only that. */
-export async function fetchRoutes(origin, destination, safeMode, mode = null) {
+export async function fetchRoutes(origin, destination, safeMode, mode = null, departMin = null) {
   const res = await fetch(`${BASE}/api/routes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -41,8 +41,11 @@ export async function fetchRoutes(origin, destination, safeMode, mode = null) {
       to_lat: destination.lat,
       to_lng: destination.lng,
       safe_mode: safeMode,
-      hour: new Date().getHours(),
       mode,
+      // Don't send the browser's local hour — the backend uses Chennai (IST)
+      // time so results are correct for judges in any timezone. Only send an
+      // explicit departure when the user scheduled one.
+      ...(Number.isFinite(departMin) ? { depart_min: departMin } : {}),
     }),
   })
   if (!res.ok) throw new Error(`routes ${res.status}`)

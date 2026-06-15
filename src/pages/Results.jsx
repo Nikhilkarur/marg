@@ -65,6 +65,10 @@ export default function Results() {
   const restored = state || loadTripState()
   const origin = restored?.origin || DEFAULT_ORIGIN
   const destination = restored?.destination || DEFAULT_DEST
+  const departMin = Number.isFinite(restored?.departMin) ? restored.departMin : null
+  const departLabel = departMin != null
+    ? `Departing ${String(Math.floor(departMin / 60)).padStart(2, '0')}:${String(departMin % 60).padStart(2, '0')}`
+    : 'Departing now'
 
   const [routes, setRoutes] = useState([])
   const [zones, setZones] = useState([])
@@ -89,7 +93,7 @@ export default function Results() {
     setLoading(true)
     // The backend restricts to `modeFilter` (so Train never returns metro, etc.).
     Promise.all([
-      fetchRoutes(origin, destination, safeMode, modeFilter).catch(() => null),
+      fetchRoutes(origin, destination, safeMode, modeFilter, departMin).catch(() => null),
       fetchHeatmap(),
     ]).then(async ([routesData, zonesData]) => {
       if (cancelled) return
@@ -112,7 +116,7 @@ export default function Results() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin.lat, origin.lng, destination.lat, destination.lng, safeMode, modeFilter])
+  }, [origin.lat, origin.lng, destination.lat, destination.lng, safeMode, modeFilter, departMin])
 
   const sorted = useMemo(() => {
     const list = [...routes]
@@ -142,7 +146,7 @@ export default function Results() {
             {origin.short || origin.name?.split(',')[0]} → {destination.short || destination.name?.split(',')[0]}
           </p>
           <p className="text-xs text-marg-muted">
-            Departing now · {loading ? 'finding routes…' : `${sorted.length} ${modeFilter ? cap(modeFilter) + ' ' : ''}route${sorted.length === 1 ? '' : 's'} found`}
+            {departLabel} · {loading ? 'finding routes…' : `${sorted.length} ${modeFilter ? cap(modeFilter) + ' ' : ''}route${sorted.length === 1 ? '' : 's'} found`}
           </p>
         </div>
       </div>

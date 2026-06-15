@@ -62,7 +62,8 @@ export function ChatButton() {
       const data = await askAssistant({
         message: t,
         safe_mode: safeMode,
-        hour: new Date().getHours(),
+        // No hour sent — the backend uses Chennai (IST) time so the assistant's
+        // day/night advice is correct regardless of the viewer's timezone.
         crime_count: HEATMAP_ZONES.length,
         route_context: `${from} → ${to}`,
       })

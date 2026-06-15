@@ -41,6 +41,7 @@ export default function Home() {
   const [origin, setOrigin] = useState(DEFAULT_ORIGIN)
   const [destination, setDestination] = useState(DEFAULT_DEST)
   const [when, setWhen] = useState('now')
+  const [departTime, setDepartTime] = useState('') // "HH:MM" when scheduling
   const [recents] = useState(() => loadRecentTrips())
 
   const swap = () => {
@@ -51,9 +52,15 @@ export default function Home() {
   // mode = null → all options; otherwise a mode chip filters Results to that mode.
   const findRoutes = (mode = null, o = origin, d = destination) => {
     if (!o || !d) return
+    // Scheduled departure → minutes-since-midnight; "now" → null (backend uses IST now).
+    let departMin = null
+    if (when === 'schedule' && departTime) {
+      const [h, m] = departTime.split(':').map(Number)
+      if (Number.isFinite(h) && Number.isFinite(m)) departMin = h * 60 + m
+    }
     saveRecentTrip(o, d) // remember for the Home quick-launch
-    saveTripState({ origin: o, destination: d, route: null, mode }) // survive a refresh
-    navigate('/results', { state: { origin: o, destination: d, mode } })
+    saveTripState({ origin: o, destination: d, route: null, mode, departMin }) // survive a refresh
+    navigate('/results', { state: { origin: o, destination: d, mode, departMin } })
   }
 
   return (
@@ -100,7 +107,7 @@ export default function Home() {
           onSelect={setDestination}
         />
 
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex items-center gap-2">
           {['now', 'schedule'].map((w) => (
             <button
               key={w}
@@ -116,6 +123,15 @@ export default function Home() {
               {w}
             </button>
           ))}
+          {when === 'schedule' && (
+            <input
+              type="time"
+              value={departTime}
+              onChange={(e) => setDepartTime(e.target.value)}
+              aria-label="Departure time"
+              className="rounded-full border border-marg-border px-3 py-1.5 text-sm text-marg-text outline-none focus:border-emerald-500"
+            />
+          )}
         </div>
       </div>
 

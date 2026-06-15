@@ -35,18 +35,23 @@ async function callGroq(key, systemPrompt, message) {
   return resp.data?.choices?.[0]?.message?.content?.trim()
 }
 
-// Offline fallback so the assistant still answers without a Groq key.
-function localReply(message, safeMode) {
+// Offline fallback so the assistant still answers without a Groq key. Kept
+// generic + trip-aware (no fabricated landmarks) so it's never wrong about a
+// specific route it can't actually see.
+function localReply(message, safeMode, routeContext) {
   const q = (message || '').toLowerCase()
+  const trip = routeContext ? ` for ${routeContext}` : ''
   if (/(safe|safety|danger|risk|alone|scared)/.test(q))
     return safeMode
-      ? 'Your safest option keeps you on well-lit, busy roads and avoids the isolated 600m stretch near Vadapalani, which has repeated night-time reports. Prefer the Metro + Auto combo after dark.'
-      : 'Turn on Women Safety Mode and I will re-rank routes by real crime data. Right now the Bus + Walk option passes an isolated stretch near Vadapalani I would avoid at night.'
+      ? `In Women Safety Mode I rank your routes${trip} by real Chennai crime data — favouring well-lit, busy roads and Metro/train over isolated walks, and flagging any risky stretches on the route. Take an auto for a poorly-lit last mile.`
+      : `Turn on Women Safety Mode and I'll re-rank your routes${trip} by real crime data to surface the safest option, especially after dark.`
   if (/(cheap|cost|fare|price|budget|money)/.test(q))
-    return 'The Bus + Walk route is cheapest but scores lowest on safety. The Metro + Auto combo costs a little more and is both faster and safer after dark.'
+    return `Buses are usually the cheapest option${trip}, but the Metro is faster and safer after dark for a little more. The route cards show the exact fares.`
+  if (/(fast|quick|time|hurry)/.test(q))
+    return `The fastest option${trip} usually takes the Metro for the main stretch with an auto for the last mile. The top route card shows the quickest with real times.`
   if (/(night|late|dark|evening)/.test(q))
-    return 'After dark in Chennai, take an auto for the last mile instead of walking from Guindy or Vadapalani station exits — they are poorly lit. Share your live trip via SOS so a contact can track you.'
-  return 'I can compare your routes on safety, cost and time, or share tips for travelling after dark around Chennai. Try "Is my route safe?" or "Cheapest option?"'
+    return 'After dark in Chennai, prefer the Metro or a local train and take an auto for the last mile instead of walking from the station. Share your live trip via SOS so a contact can track you.'
+  return `I can compare your routes${trip} on safety, cost and time, or share tips for travelling after dark in Chennai. Try "Is my route safe?" or "Cheapest option?"`
 }
 
 // POST /api/chat  body: { message, route_context, safe_mode, hour, crime_count }
@@ -59,7 +64,7 @@ router.post('/', async (req, res) => {
   const crime_count = Number.isFinite(req.body?.crime_count) ? req.body.crime_count : 0
   try {
     if (!GROQ_KEYS.length) {
-      return res.json({ reply: localReply(message, safe_mode), source: 'local' })
+      return res.json({ reply: localReply(message, safe_mode, route_context), source: 'local' })
     }
 
     // Time-of-day is IST regardless of server timezone (TASK 4A1).
@@ -96,12 +101,12 @@ Context: time ${timeDesc} (${currentHour}:00 IST); Safe Mode ${safe_mode ? 'ON' 
       }
     }
     res.json({
-      reply: reply || localReply(message, safe_mode),
+      reply: reply || localReply(message, safe_mode, route_context),
       source: reply ? 'groq' : 'local-fallback',
     })
   } catch (err) {
     console.error('[Chat]', err.response?.data?.error?.message || err.message)
-    res.json({ reply: localReply(message, safe_mode), source: 'local-fallback' })
+    res.json({ reply: localReply(message, safe_mode, route_context), source: 'local-fallback' })
   }
 })
 
