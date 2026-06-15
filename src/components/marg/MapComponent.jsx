@@ -70,10 +70,17 @@ export default function MapComponent({ route, heatmapZones = [], center, zoom = 
 
     const ro = new ResizeObserver(() => map.invalidateSize())
     ro.observe(containerRef.current)
-    setTimeout(() => map.invalidateSize(), 200) // settle size after first paint
+    // Mobile browsers often report the final container size a beat after first
+    // paint (address-bar collapse, flex settle), leaving half-rendered/grey
+    // tiles. Nudge a few times and on orientation change so the map fills cleanly.
+    const settle = () => map.invalidateSize()
+    const timers = [120, 350, 700, 1200].map((ms) => setTimeout(settle, ms))
+    window.addEventListener('orientationchange', settle)
 
     return () => {
       ro.disconnect()
+      timers.forEach(clearTimeout)
+      window.removeEventListener('orientationchange', settle)
       map.remove()
       mapRef.current = null
       layers.current = { route: null, markers: [], zones: [] }

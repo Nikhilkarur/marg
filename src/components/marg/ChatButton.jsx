@@ -77,12 +77,14 @@ export function ChatButton() {
 
   return (
     <>
-      {/* Floating action button, top-right below the profile avatar. */}
+      {/* Floating action button. On mobile the map sits at the top, so we stack
+          this above SOS at the bottom-right; on desktop it sits top-right below
+          the profile avatar. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open Marg AI assistant"
-        className="fixed right-5 top-4 z-50 flex items-center gap-2 rounded-full bg-emerald-600 py-3 pl-4 pr-5 text-white shadow-xl shadow-emerald-600/30 transition-transform hover:scale-105 active:scale-95 md:right-6 md:top-20"
+        className="fixed bottom-[9.25rem] right-5 z-50 flex items-center gap-2 rounded-full bg-emerald-600 py-3 pl-4 pr-5 text-white shadow-xl shadow-emerald-600/30 transition-transform hover:scale-105 active:scale-95 md:bottom-auto md:right-6 md:top-20"
       >
         <Sparkles className="size-5" />
         <span className="text-sm font-semibold">Marg AI</span>
