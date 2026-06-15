@@ -17,9 +17,10 @@ import LocationSearch from '@/components/marg/LocationSearch'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useSafeMode } from '@/hooks/useSafeMode'
+import { useAuth } from '@/hooks/useAuth'
 import { HEATMAP_ZONES } from '@/data/heatmapZones'
 import { saveTripState, saveRecentTrip, loadRecentTrips } from '@/lib/tripState'
-import { cn } from '@/lib/utils'
+import { cn, firstName } from '@/lib/utils'
 
 const modes = [
   { label: 'Bus', icon: Bus, color: 'text-emerald-500', bg: 'bg-emerald-50' },
@@ -35,6 +36,8 @@ const DEFAULT_DEST = { name: 'T. Nagar, Chennai', lat: 13.0418, lng: 80.2341 }
 export default function Home() {
   const navigate = useNavigate()
   const { safeMode, toggle } = useSafeMode()
+  const { user } = useAuth()
+  const name = firstName(user?.user_metadata?.full_name)
   const [origin, setOrigin] = useState(DEFAULT_ORIGIN)
   const [destination, setDestination] = useState(DEFAULT_DEST)
   const [when, setWhen] = useState('now')
@@ -57,7 +60,7 @@ export default function Home() {
     <AppLayout map={<MapComponent heatmapZones={HEATMAP_ZONES} />}>
       {/* Greeting */}
       <div className="animate-fade-up p-6 pb-2">
-        <h1 className="text-2xl font-bold text-marg-text">Where to, Nikhil?</h1>
+        <h1 className="text-2xl font-bold text-marg-text">{name ? `Where to, ${name}?` : 'Where to?'}</h1>
         <p className="mt-1 text-sm text-marg-muted">
           Compare metro, train, bus and auto — by time, cost and safety.
         </p>

@@ -12,15 +12,15 @@ function reply(input, safeMode) {
   const q = input.toLowerCase()
   if (/(safe|safety|danger|risk|alone|scared)/.test(q))
     return safeMode
-      ? ‘Your recommended route stays on well-lit, busy roads based on real crime data. Women Safety Mode has re-ranked routes to avoid isolated stretches.’
-      : ‘Turn on Women Safety Mode and I\’ll re-rank these routes by real Chennai crime data to surface the safest option, especially after dark.’
+      ? 'Your recommended route stays on well-lit, busy roads based on real crime data. Women Safety Mode has re-ranked routes to avoid isolated stretches.'
+      : 'Turn on Women Safety Mode and I\'ll re-rank these routes by real Chennai crime data to surface the safest option, especially after dark.'
   if (/(cheap|cost|fare|price|budget|money)/.test(q))
-    return ‘The bus route is usually cheapest but scores lower on safety. The Metro combo costs more but is faster and safer — worth it after dark.’
+    return 'The bus route is usually cheapest but scores lower on safety. The Metro combo costs more but is faster and safer — worth it after dark.'
   if (/(fast|quick|time|hurry)/.test(q))
-    return ‘The fastest route typically uses Metro for the main stretch. Check the route cards — the top card shows the quickest option with real departure times.’
+    return 'The fastest route typically uses Metro for the main stretch. Check the route cards — the top card shows the quickest option with real departure times.'
   if (/(night|late|dark|evening)/.test(q))
-    return ‘After dark, prefer Metro or a direct Auto over bus + walk combos. Share your live trip via the SOS menu so a contact can track you. Women Safety Mode will highlight any risky stretches on your route.’
-  return ‘I can compare your routes on safety, cost and time, or share tips for travelling after dark in Chennai. Try “Is my route safe?” or “Cheapest option?”’
+    return 'After dark, prefer Metro or a direct Auto over bus + walk combos. Share your live trip via the SOS menu so a contact can track you. Women Safety Mode will highlight any risky stretches on your route.'
+  return 'I can compare your routes on safety, cost and time, or share tips for travelling after dark in Chennai. Try "Is my route safe?" or "Cheapest option?"'
 }
 
 export function ChatButton() {

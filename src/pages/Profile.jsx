@@ -9,6 +9,7 @@ import { useSafeMode } from '@/hooks/useSafeMode'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase, supabaseEnabled } from '@/lib/supabase'
 import { loadRecentTrips, saveTripState } from '@/lib/tripState'
+import { initials } from '@/lib/utils'
 
 function getSosContact() {
   try {
@@ -79,9 +80,9 @@ export default function Profile() {
       <div className="mx-auto w-full max-w-2xl px-4 py-8">
         {/* Avatar */}
         <div className="mb-8 flex flex-col items-center text-center">
-          <Avatar initials="KN" className="size-20 text-2xl" />
-          <h1 className="mt-3 text-xl font-bold text-marg-text">{user?.user_metadata?.full_name || 'Karur Nikhil'}</h1>
-          <p className="text-sm text-marg-muted">{user?.email || 'karurnikhil2507@gmail.com'}</p>
+          <Avatar initials={initials(user?.user_metadata?.full_name)} className="size-20 text-2xl" />
+          <h1 className="mt-3 text-xl font-bold text-marg-text">{user?.user_metadata?.full_name || 'Marg User'}</h1>
+          <p className="text-sm text-marg-muted">{user?.email || 'Demo mode'}</p>
         </div>
 
         {/* Settings */}

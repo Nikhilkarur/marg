@@ -3,7 +3,8 @@ import { Navigation, Shield } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Avatar } from '@/components/ui/avatar'
 import { useSafeMode } from '@/hooks/useSafeMode'
-import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
+import { cn, initials } from '@/lib/utils'
 
 const tabs = [
   { label: 'Plan', to: '/home', match: ['/home', '/results', '/map'] },
@@ -14,6 +15,7 @@ const tabs = [
 export function TopNav() {
   const { pathname } = useLocation()
   const { safeMode, toggle } = useSafeMode()
+  const { user } = useAuth()
 
   return (
     <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b border-marg-border bg-white/90 px-6 backdrop-blur md:flex">
@@ -73,7 +75,7 @@ export function TopNav() {
             tone={safeMode ? 'gold' : 'emerald'}
           />
         </div>
-        <Avatar initials="KN" className="size-9 text-sm" />
+        <Avatar initials={initials(user?.user_metadata?.full_name)} className="size-9 text-sm" />
       </div>
     </header>
   )

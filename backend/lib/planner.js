@@ -11,6 +11,7 @@
 
 const {
   LINES,
+  HM,
   haversineM,
   nearestOnLine,
   nextDeparture,
@@ -189,6 +190,9 @@ async function planTransit(fromLng, fromLat, toLng, toLat, departMin, hour, dest
     const transfer = s === 0 ? 0 : TRANSFER_BUFFER
     const dep = nextDeparture(line, hour, cur + transfer)
     if (!dep) return null // service ended for this leg
+    // Service hasn't started yet (e.g. a 2am query) → don't offer a route that
+    // really means "wait until the first train". Honest for a "depart now" view.
+    if (s === 0 && dep.wait > 60) return null
     const hops = Math.abs(toIdx - fromIdx)
     const ride = Math.max(2, Math.round(hops * line.hopMin))
     const arrive = dep.board + ride
@@ -255,12 +259,19 @@ async function planAuto(fromLng, fromLat, toLng, toLat, departMin, destName) {
 
 // ---- bus (frequency estimate, labelled) -----------------------------------
 const BUS_MAX_M = 30000 // a single MTC bus for 40km isn't what people take; cap it.
+// MTC's regular daytime service window. No reliable free GTFS for the limited
+// night-service routes, so we don't fabricate a bus outside these hours (#bus).
+const BUS_FIRST = HM(5, 0)
+const BUS_LAST = HM(22, 30)
 async function planBus(fromLng, fromLat, toLng, toLat, departMin, hour, destName) {
   const drive = await legOrEstimate(fromLng, fromLat, toLng, toLat, 'auto')
   if (drive.distance_m > BUS_MAX_M) return null // beyond sensible single-bus range
   const walkIn = 3
   const headway = hour >= 7 && hour < 22 ? 8 : 18
   const wait = headway
+  // Board time outside service hours → no bus now (don't invent a 2am bus).
+  const boardMin = departMin + walkIn + wait
+  if (boardMin < BUS_FIRST || boardMin > BUS_LAST) return null
   const ride = Math.max(8, Math.round(drive.duration_min * 1.6))
   const walkOut = 3
   let t = departMin
