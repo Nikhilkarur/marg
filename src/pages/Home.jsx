@@ -49,6 +49,16 @@ export default function Home() {
     setDestination(origin)
   }
 
+  // Choosing "schedule" pre-fills the current clock time so the picker is never
+  // empty — an empty time silently behaved like "now", making the button useless.
+  const pickWhen = (w) => {
+    setWhen(w)
+    if (w === 'schedule' && !departTime) {
+      const n = new Date()
+      setDepartTime(`${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`)
+    }
+  }
+
   // mode = null → all options; otherwise a mode chip filters Results to that mode.
   const findRoutes = (mode = null, o = origin, d = destination) => {
     if (!o || !d) return
@@ -112,7 +122,7 @@ export default function Home() {
             <button
               key={w}
               type="button"
-              onClick={() => setWhen(w)}
+              onClick={() => pickWhen(w)}
               className={cn(
                 'rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors duration-150',
                 when === w
