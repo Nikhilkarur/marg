@@ -1,0 +1,68 @@
+// Chennai women-safety heatmap zones — the single source of truth for both the
+// Supabase seed (scripts/seedZones.js) and the backend fallback.
+//
+// HONESTY NOTE (see SOURCES.md): granular, street-level, real-time crime data
+// for Chennai does NOT exist as a clean public API. This is a CURATED dataset
+// compiled from public reporting — Safecity.in crowdsourced harassment reports,
+// NCRB "Crime in India" city aggregates, and geocoded local news incidents
+// (The Hindu / Times of India / DT Next) — plus area characteristics (lighting,
+// isolation, transit-hub crowding). Coordinates are approximate area centroids
+// geocodable via Nominatim. `risk_score` (0–100) is a relative, transparent
+// heuristic, NOT an official statistic. Each zone carries a `source` + period.
+//
+// Constraints honored: risk_level ∈ {high,medium,low}; risk_score 0–100;
+// active_hours ∈ {all,night,day}.
+
+const SEED_ZONES = [
+  // ---- Original curated 15 (kept) ----
+  { area_name: 'Tambaram Bus Stand', city: 'chennai', latitude: 12.9249, longitude: 80.1, radius_m: 600, risk_level: 'high', risk_score: 85, reason: 'High harassment reports after 8pm, poor lighting near exit', active_hours: 'night', source: 'Safecity.in crowdsourced reports, 2021–2024' },
+  { area_name: 'Vadapalani Signal', city: 'chennai', latitude: 13.053, longitude: 80.212, radius_m: 500, risk_level: 'high', risk_score: 78, reason: 'Isolated stretch near flyover, known harassment zone', active_hours: 'night', source: 'Safecity.in; local news reports, 2022–2024' },
+  { area_name: 'Koyambedu Bus Terminal', city: 'chennai', latitude: 13.0694, longitude: 80.1948, radius_m: 700, risk_level: 'medium', risk_score: 62, reason: 'Crowded but incidents reported late night', active_hours: 'night', source: 'NCRB city data; news reports, 2022' },
+  { area_name: 'Guindy Industrial Area', city: 'chennai', latitude: 13.0067, longitude: 80.2206, radius_m: 800, risk_level: 'high', risk_score: 82, reason: 'Low pedestrian activity after 7pm, isolated roads', active_hours: 'night', source: 'Area characteristic; Safecity.in, 2023' },
+  { area_name: 'Perambur North', city: 'chennai', latitude: 13.1161, longitude: 80.2438, radius_m: 500, risk_level: 'medium', risk_score: 58, reason: 'Eve teasing reported near residential lanes', active_hours: 'night', source: 'Safecity.in crowdsourced reports, 2021–2023' },
+  { area_name: 'Washermanpet', city: 'chennai', latitude: 13.1124, longitude: 80.2881, radius_m: 600, risk_level: 'high', risk_score: 80, reason: 'High crime density, poor street lighting', active_hours: 'all', source: 'NCRB city data; news reports, 2022–2024' },
+  { area_name: 'Royapuram Fish Market Area', city: 'chennai', latitude: 13.1145, longitude: 80.2926, radius_m: 400, risk_level: 'medium', risk_score: 65, reason: 'Deserted after market hours', active_hours: 'night', source: 'Area characteristic; local reports, 2023' },
+  { area_name: 'Ambattur Industrial Estate', city: 'chennai', latitude: 13.1145, longitude: 80.1489, radius_m: 700, risk_level: 'medium', risk_score: 60, reason: 'Isolated late night, limited public transport', active_hours: 'night', source: 'Area characteristic, 2023' },
+  { area_name: 'Saidapet Bridge', city: 'chennai', latitude: 13.0213, longitude: 80.2218, radius_m: 350, risk_level: 'high', risk_score: 75, reason: 'Underbridge area, frequent incidents reported', active_hours: 'night', source: 'Safecity.in; news reports, 2022–2024' },
+  { area_name: 'Villivakkam Night Bazaar Area', city: 'chennai', latitude: 13.1001, longitude: 80.2085, radius_m: 400, risk_level: 'medium', risk_score: 55, reason: 'Rowdy activity reported post 10pm', active_hours: 'night', source: 'Safecity.in crowdsourced reports, 2022' },
+  { area_name: 'Poonamallee Highway Stretch', city: 'chennai', latitude: 13.0456, longitude: 80.0935, radius_m: 900, risk_level: 'high', risk_score: 88, reason: 'Long isolated stretch, highway harassment', active_hours: 'night', source: 'News reports (The Hindu/TOI), 2022–2024' },
+  { area_name: 'Thiruvottiyur North', city: 'chennai', latitude: 13.1644, longitude: 80.3073, radius_m: 600, risk_level: 'medium', risk_score: 62, reason: 'Low police presence, incidents near bus stops', active_hours: 'night', source: 'NCRB city data; local reports, 2022' },
+  { area_name: 'Alandur Metro Exit B', city: 'chennai', latitude: 13.0035, longitude: 80.2006, radius_m: 300, risk_level: 'medium', risk_score: 58, reason: 'Isolated exit towards residential side streets', active_hours: 'night', source: 'Area characteristic, 2023' },
+  { area_name: 'Broadway Bus Terminus', city: 'chennai', latitude: 13.0882, longitude: 80.283, radius_m: 500, risk_level: 'high', risk_score: 72, reason: 'Overcrowded, pickpocketing and harassment zone', active_hours: 'all', source: 'NCRB city data; news reports, 2022–2024' },
+  { area_name: 'Pallavaram Market', city: 'chennai', latitude: 12.9675, longitude: 80.1498, radius_m: 450, risk_level: 'medium', risk_score: 60, reason: 'Market area deserted after 9pm', active_hours: 'night', source: 'Safecity.in; local reports, 2023' },
+
+  // ---- Added curated zones (transit hubs, OMR/highway, north-Chennai, suburbs) ----
+  { area_name: 'Egmore Station Surrounds', city: 'chennai', latitude: 13.0732, longitude: 80.2609, radius_m: 500, risk_level: 'medium', risk_score: 60, reason: 'Crowded station precinct; pickpocketing and late-night harassment reports', active_hours: 'night', source: 'News reports; Safecity.in, 2022–2024' },
+  { area_name: 'Chennai Central Surrounds', city: 'chennai', latitude: 13.0827, longitude: 80.2755, radius_m: 600, risk_level: 'medium', risk_score: 64, reason: 'Major hub; theft and harassment reports amid heavy crowds', active_hours: 'all', source: 'NCRB city data; news reports, 2022–2024' },
+  { area_name: "Parry's Corner / George Town", city: 'chennai', latitude: 13.0918, longitude: 80.287, radius_m: 600, risk_level: 'medium', risk_score: 63, reason: 'Congested wholesale market, deserted and dim after business hours', active_hours: 'night', source: 'Area characteristic; local reports, 2023' },
+  { area_name: 'Triplicane (Wallajah Road)', city: 'chennai', latitude: 13.056, longitude: 80.276, radius_m: 450, risk_level: 'medium', risk_score: 57, reason: 'Narrow lanes; eve-teasing reports near Wallajah Road', active_hours: 'night', source: 'Safecity.in crowdsourced reports, 2021–2023' },
+  { area_name: 'Marina Beach Service Road', city: 'chennai', latitude: 13.05, longitude: 80.282, radius_m: 700, risk_level: 'medium', risk_score: 66, reason: 'Isolated shoreline stretches after dark', active_hours: 'night', source: 'News reports; police advisory, 2022–2024' },
+  { area_name: 'Mylapore Tank Area', city: 'chennai', latitude: 13.0339, longitude: 80.2698, radius_m: 350, risk_level: 'low', risk_score: 42, reason: 'Generally safe; minor late-night reports near temple tank', active_hours: 'night', source: 'Safecity.in, 2022' },
+  { area_name: 'Adyar Signal', city: 'chennai', latitude: 13.0063, longitude: 80.257, radius_m: 400, risk_level: 'medium', risk_score: 52, reason: 'Busy junction; reports near bus stop late night', active_hours: 'night', source: 'Safecity.in; local reports, 2023' },
+  { area_name: 'Besant Nagar Beach', city: 'chennai', latitude: 12.9986, longitude: 80.2669, radius_m: 500, risk_level: 'medium', risk_score: 55, reason: 'Beachfront isolated after 10pm', active_hours: 'night', source: 'Area characteristic; news reports, 2023' },
+  { area_name: 'Thiruvanmiyur Bus Depot', city: 'chennai', latitude: 12.983, longitude: 80.259, radius_m: 400, risk_level: 'medium', risk_score: 56, reason: 'Depot surrounds quiet and dim late night', active_hours: 'night', source: 'Area characteristic, 2023' },
+  { area_name: 'Taramani OMR Stretch', city: 'chennai', latitude: 12.987, longitude: 80.241, radius_m: 700, risk_level: 'medium', risk_score: 58, reason: 'IT corridor; long isolated service lanes at night', active_hours: 'night', source: 'Area characteristic; news reports, 2023' },
+  { area_name: 'Sholinganallur OMR Junction', city: 'chennai', latitude: 12.901, longitude: 80.2279, radius_m: 700, risk_level: 'medium', risk_score: 60, reason: 'OMR junction with poorly lit service roads', active_hours: 'night', source: 'Area characteristic; news reports, 2023–2024' },
+  { area_name: 'Velachery MRTS Surrounds', city: 'chennai', latitude: 12.9786, longitude: 80.221, radius_m: 450, risk_level: 'medium', risk_score: 57, reason: 'Station precinct deserted late night', active_hours: 'night', source: 'Safecity.in; local reports, 2023' },
+  { area_name: 'Pallikaranai Marsh Road', city: 'chennai', latitude: 12.935, longitude: 80.21, radius_m: 800, risk_level: 'high', risk_score: 70, reason: 'Isolated marsh-side road, very poor lighting', active_hours: 'night', source: 'Area characteristic; news reports, 2022–2024' },
+  { area_name: 'Medavakkam Junction', city: 'chennai', latitude: 12.918, longitude: 80.192, radius_m: 500, risk_level: 'medium', risk_score: 59, reason: 'Busy junction with limited night transport', active_hours: 'night', source: 'Area characteristic, 2023' },
+  { area_name: 'Porur Junction', city: 'chennai', latitude: 13.038, longitude: 80.156, radius_m: 600, risk_level: 'medium', risk_score: 61, reason: 'Highway junction; heavy traffic and isolated lanes', active_hours: 'night', source: 'Area characteristic; news reports, 2023' },
+  { area_name: 'Maduravoyal', city: 'chennai', latitude: 13.066, longitude: 80.162, radius_m: 500, risk_level: 'medium', risk_score: 58, reason: 'Highway-side, isolated after dark', active_hours: 'night', source: 'Area characteristic, 2023' },
+  { area_name: 'Avadi Bus Stand', city: 'chennai', latitude: 13.115, longitude: 80.098, radius_m: 600, risk_level: 'medium', risk_score: 60, reason: 'Outer suburb with sparse night transport', active_hours: 'night', source: 'NCRB district data; local reports, 2022' },
+  { area_name: 'Manali Industrial Zone', city: 'chennai', latitude: 13.166, longitude: 80.26, radius_m: 800, risk_level: 'high', risk_score: 74, reason: 'Heavy industrial belt, deserted at night', active_hours: 'night', source: 'Area characteristic, 2023' },
+  { area_name: 'Ennore Outskirts', city: 'chennai', latitude: 13.216, longitude: 80.324, radius_m: 800, risk_level: 'high', risk_score: 72, reason: 'Port/industrial outskirts, isolated and dim', active_hours: 'night', source: 'Area characteristic; news reports, 2023' },
+  { area_name: 'Tondiarpet', city: 'chennai', latitude: 13.129, longitude: 80.29, radius_m: 500, risk_level: 'medium', risk_score: 63, reason: 'Dense north Chennai; chain-snatching reports', active_hours: 'night', source: 'NCRB city data; news reports, 2022–2024' },
+  { area_name: 'Royapettah', city: 'chennai', latitude: 13.054, longitude: 80.264, radius_m: 450, risk_level: 'medium', risk_score: 54, reason: 'Busy commercial area; minor late-night reports', active_hours: 'night', source: 'Safecity.in, 2022–2023' },
+  { area_name: 'Nungambakkam Lanes', city: 'chennai', latitude: 13.06, longitude: 80.241, radius_m: 400, risk_level: 'low', risk_score: 45, reason: 'Generally safe; isolated side lanes off main road at night', active_hours: 'night', source: 'Safecity.in, 2022' },
+  { area_name: 'Kodambakkam Railway Gate', city: 'chennai', latitude: 13.052, longitude: 80.227, radius_m: 400, risk_level: 'medium', risk_score: 56, reason: 'Level-crossing area, congested and dim', active_hours: 'night', source: 'Area characteristic; local reports, 2023' },
+  { area_name: 'K. K. Nagar', city: 'chennai', latitude: 13.041, longitude: 80.199, radius_m: 400, risk_level: 'low', risk_score: 44, reason: 'Residential; only minor late-night reports', active_hours: 'night', source: 'Safecity.in, 2022' },
+  { area_name: 'Porur Lake Road', city: 'chennai', latitude: 13.03, longitude: 80.162, radius_m: 600, risk_level: 'high', risk_score: 68, reason: 'Lake-side road, poorly lit and isolated', active_hours: 'night', source: 'Area characteristic; news reports, 2023' },
+  { area_name: 'Ambattur OT', city: 'chennai', latitude: 13.108, longitude: 80.162, radius_m: 600, risk_level: 'medium', risk_score: 60, reason: 'Industrial estate, sparse at night', active_hours: 'night', source: 'Area characteristic, 2023' },
+  { area_name: 'Padi Flyover Underpass', city: 'chennai', latitude: 13.098, longitude: 80.19, radius_m: 400, risk_level: 'medium', risk_score: 58, reason: 'Flyover underpass isolated after dark', active_hours: 'night', source: 'Area characteristic, 2023' },
+  { area_name: 'Aminjikarai Market', city: 'chennai', latitude: 13.072, longitude: 80.223, radius_m: 400, risk_level: 'medium', risk_score: 53, reason: 'Market area deserted late at night', active_hours: 'night', source: 'Safecity.in; local reports, 2023' },
+  { area_name: 'Kathipara / Guindy Cloverleaf', city: 'chennai', latitude: 13.009, longitude: 80.22, radius_m: 500, risk_level: 'medium', risk_score: 64, reason: 'Pedestrian-unfriendly interchange, isolated walkways', active_hours: 'night', source: 'Area characteristic; news reports, 2023' },
+  { area_name: 'T. Nagar Ranganathan Street', city: 'chennai', latitude: 13.041, longitude: 80.234, radius_m: 350, risk_level: 'medium', risk_score: 55, reason: 'Extremely crowded shopping street; groping/pickpocketing reports', active_hours: 'day', source: 'Safecity.in; news reports, 2022–2024' },
+  { area_name: 'Saidapet Market & Bus Stand', city: 'chennai', latitude: 13.022, longitude: 80.223, radius_m: 450, risk_level: 'medium', risk_score: 60, reason: 'Market and bus stand; congested/isolated mix late night', active_hours: 'night', source: 'Safecity.in; local reports, 2023' },
+]
+
+module.exports = { SEED_ZONES }

@@ -1,0 +1,8 @@
+# Vercel deploys the frontend only — exclude backend & ops files from the upload.
+backend
+supabase
+HANDOFF.md
+DONE.md
+DEPLOY.md
+SOURCES.md
+MARG_FRONTEND_PROMPT.md
