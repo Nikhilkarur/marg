@@ -85,10 +85,11 @@ export default function Login() {
           </Link>
         </p>
 
-        <p className="mt-6 border-t border-marg-border pt-4 text-center text-xs leading-relaxed text-marg-muted">
-          Marg is an MVP built as a web app — delivered on the web to avoid Google
-          Play deployment constraints for this hackathon.
-        </p>
+        <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-xs leading-relaxed text-amber-900">
+          <strong>Note:</strong> Marg is an MVP built as a web app to avoid Google Play deployment constraints for this hackathon.
+          <br className="my-1" />
+          <span className="font-bold">It currently only works for locations in Chennai.</span>
+        </div>
       </div>
     </div>
   )
