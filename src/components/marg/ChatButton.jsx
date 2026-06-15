@@ -3,6 +3,7 @@ import { Sparkles, Send, X } from 'lucide-react'
 import { useSafeMode } from '@/hooks/useSafeMode'
 import { askAssistant } from '@/lib/api'
 import { HEATMAP_ZONES } from '@/data/heatmapZones'
+import { loadTripState } from '@/lib/tripState'
 import { cn } from '@/lib/utils'
 
 const QUICK = ['Is my route safe?', 'Cheapest option?', 'Late-night tips']
@@ -11,15 +12,15 @@ function reply(input, safeMode) {
   const q = input.toLowerCase()
   if (/(safe|safety|danger|risk|alone|scared)/.test(q))
     return safeMode
-      ? 'Your recommended route (Walk → Metro → Auto, score 82) stays on well-lit, busy roads. I skipped the Vadapalani bus route — it has a 600m isolated stretch with 4 night-time reports this year.'
-      : 'Turn on Women Safety Mode and I’ll re-rank these routes by real crime data. The Bus + Walk option currently passes an isolated stretch near Vadapalani I’d avoid after dark.'
+      ? ‘Your recommended route stays on well-lit, busy roads based on real crime data. Women Safety Mode has re-ranked routes to avoid isolated stretches.’
+      : ‘Turn on Women Safety Mode and I\’ll re-rank these routes by real Chennai crime data to surface the safest option, especially after dark.’
   if (/(cheap|cost|fare|price|budget|money)/.test(q))
-    return 'The Bus + Walk route is cheapest at ₹15, but scores 58 on safety. For ₹47 the Metro combo scores 82 and is 7 minutes faster — worth it at night.'
+    return ‘The bus route is usually cheapest but scores lower on safety. The Metro combo costs more but is faster and safer — worth it after dark.’
   if (/(fast|quick|time|hurry)/.test(q))
-    return 'Fastest is Walk → Metro → Auto: 34 min, ₹47. Metro skips the Anna Nagar traffic and trains run every 7 minutes right now.'
+    return ‘The fastest route typically uses Metro for the main stretch. Check the route cards — the top card shows the quickest option with real departure times.’
   if (/(night|late|dark|evening)/.test(q))
-    return 'After dark, take the Auto for the last mile instead of walking from the station — Guindy and Vadapalani exits are poorly lit. Share your live trip from the SOS menu so a contact can track you.'
-  return 'I can compare these routes on safety, cost and time, or share tips for travelling after dark. Try “Is my route safe?” or “Cheapest option?”'
+    return ‘After dark, prefer Metro or a direct Auto over bus + walk combos. Share your live trip via the SOS menu so a contact can track you. Women Safety Mode will highlight any risky stretches on your route.’
+  return ‘I can compare your routes on safety, cost and time, or share tips for travelling after dark in Chennai. Try “Is my route safe?” or “Cheapest option?”’
 }
 
 export function ChatButton() {
@@ -55,12 +56,15 @@ export function ChatButton() {
     setTyping(true)
     let answer
     try {
+      const trip = loadTripState()
+      const from = trip?.origin?.name?.split(',')[0] || trip?.origin?.short || 'your origin'
+      const to = trip?.destination?.name?.split(',')[0] || trip?.destination?.short || 'your destination'
       const data = await askAssistant({
         message: t,
         safe_mode: safeMode,
         hour: new Date().getHours(),
         crime_count: HEATMAP_ZONES.length,
-        route_context: 'Anna Nagar → T. Nagar',
+        route_context: `${from} → ${to}`,
       })
       answer = data.reply
     } catch {
