@@ -22,10 +22,10 @@ import { saveTripState, saveRecentTrip, loadRecentTrips } from '@/lib/tripState'
 import { cn } from '@/lib/utils'
 
 const modes = [
-  { label: 'Bus', icon: Bus, color: 'text-emerald-500' },
-  { label: 'Metro', icon: Train, color: 'text-purple-500' },
-  { label: 'Train', icon: TrainFront, color: 'text-blue-500' },
-  { label: 'Auto', icon: Car, color: 'text-gold-500' },
+  { label: 'Bus', icon: Bus, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+  { label: 'Metro', icon: Train, color: 'text-purple-500', bg: 'bg-purple-50' },
+  { label: 'Train', icon: TrainFront, color: 'text-blue-500', bg: 'bg-blue-50' },
+  { label: 'Auto', icon: Car, color: 'text-gold-500', bg: 'bg-gold-50' },
 ]
 
 // Sensible Chennai defaults so a demo works without typing.
@@ -56,7 +56,7 @@ export default function Home() {
   return (
     <AppLayout map={<MapComponent heatmapZones={HEATMAP_ZONES} />}>
       {/* Greeting */}
-      <div className="p-6 pb-2">
+      <div className="animate-fade-up p-6 pb-2">
         <h1 className="text-2xl font-bold text-marg-text">Where to, Nikhil?</h1>
         <p className="mt-1 text-sm text-marg-muted">
           Compare metro, train, bus and auto — by time, cost and safety.
@@ -64,7 +64,10 @@ export default function Home() {
       </div>
 
       {/* Search card */}
-      <div className="mx-4 mb-4 rounded-2xl border border-marg-border bg-white p-4 shadow-sm">
+      <div
+        className="mx-4 mb-4 animate-fade-up rounded-2xl border border-marg-border bg-white p-4 shadow-sm"
+        style={{ animationDelay: '60ms' }}
+      >
         <LocationSearch
           icon={MapPin}
           iconColor="text-emerald-500"
@@ -115,7 +118,7 @@ export default function Home() {
 
       {/* Recent trips quick-launch */}
       {recents.length > 0 && (
-        <div className="mx-4 mb-4">
+        <div className="mx-4 mb-4 animate-fade-up" style={{ animationDelay: '120ms' }}>
           <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-marg-muted">
             <Clock className="size-3.5" /> Recent
           </p>
@@ -125,7 +128,7 @@ export default function Home() {
                 key={i}
                 type="button"
                 onClick={() => findRoutes(null, r.origin, r.destination)}
-                className="flex items-center gap-2 rounded-xl border border-marg-border bg-white px-3 py-2 text-left text-sm transition-colors hover:border-emerald-500 hover:bg-emerald-50"
+                className="flex items-center gap-2 rounded-xl border border-marg-border bg-white px-3 py-2 text-left text-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-emerald-50 hover:shadow-sm active:scale-[0.98]"
               >
                 <MapPin className="size-4 shrink-0 text-emerald-500" />
                 <span className="truncate text-marg-text">
@@ -138,7 +141,7 @@ export default function Home() {
       )}
 
       {/* Mode chips */}
-      <div className="mx-4 mb-4 grid grid-cols-4 gap-3">
+      <div className="mx-4 mb-4 grid animate-fade-up grid-cols-4 gap-3" style={{ animationDelay: '180ms' }}>
         {modes.map((mode) => {
           const Icon = mode.icon
           return (
@@ -146,9 +149,11 @@ export default function Home() {
               key={mode.label}
               type="button"
               onClick={() => findRoutes(mode.label.toLowerCase())}
-              className="flex flex-col items-center gap-1 rounded-xl border border-marg-border bg-white p-3 transition-colors duration-150 hover:border-emerald-500 hover:bg-emerald-50"
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-marg-border bg-white p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-sm active:scale-95"
             >
-              <Icon className={cn('size-6', mode.color)} />
+              <span className={cn('flex size-9 items-center justify-center rounded-full', mode.bg)}>
+                <Icon className={cn('size-5', mode.color)} />
+              </span>
               <span className="text-xs font-medium text-marg-text">{mode.label}</span>
             </button>
           )
@@ -157,8 +162,9 @@ export default function Home() {
 
       {/* Women Safety Mode card */}
       <div
+        style={{ animationDelay: '240ms' }}
         className={cn(
-          'mx-4 mb-4 flex items-center gap-3 rounded-xl border p-4 transition-colors duration-200',
+          'mx-4 mb-4 flex animate-fade-up items-center gap-3 rounded-xl border p-4 transition-colors duration-200',
           safeMode ? 'border-amber-300 bg-amber-50' : 'border-marg-border bg-white',
         )}
       >
@@ -171,7 +177,7 @@ export default function Home() {
       </div>
 
       {/* CTA */}
-      <div className="mx-4 mb-6">
+      <div className="mx-4 mb-6 animate-fade-up" style={{ animationDelay: '300ms' }}>
         <Button size="lg" className="w-full" onClick={() => findRoutes()}>
           Find Routes →
         </Button>

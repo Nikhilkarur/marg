@@ -206,26 +206,27 @@ export default function Results() {
           </div>
         ) : (
           sorted.map((route, i) => (
-            <RouteCard
-              key={route.id}
-              route={toCard(route, i, sort)}
-              onClick={() => {
-                const trip = { route, origin, destination, zones }
-                saveTripState(trip) // persist the chosen route for /map refreshes
-                // Log to history for signed-in users (no-op for demo); no "start" framing.
-                saveTrip({
-                  from_name: origin.name,
-                  from_lat: origin.lat,
-                  from_lng: origin.lng,
-                  to_name: destination.name,
-                  to_lat: destination.lat,
-                  to_lng: destination.lng,
-                  route_data: route,
-                  safe_mode: safeMode,
-                }).catch(() => {})
-                navigate('/map', { state: trip })
-              }}
-            />
+            <div key={route.id} className="animate-fade-up" style={{ animationDelay: `${i * 70}ms` }}>
+              <RouteCard
+                route={toCard(route, i, sort)}
+                onClick={() => {
+                  const trip = { route, origin, destination, zones }
+                  saveTripState(trip) // persist the chosen route for /map refreshes
+                  // Log to history for signed-in users (no-op for demo); no "start" framing.
+                  saveTrip({
+                    from_name: origin.name,
+                    from_lat: origin.lat,
+                    from_lng: origin.lng,
+                    to_name: destination.name,
+                    to_lat: destination.lat,
+                    to_lng: destination.lng,
+                    route_data: route,
+                    safe_mode: safeMode,
+                  }).catch(() => {})
+                  navigate('/map', { state: trip })
+                }}
+              />
+            </div>
           ))
         )}
       </div>

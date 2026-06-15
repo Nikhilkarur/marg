@@ -11,7 +11,7 @@ export function RouteCard({ route, onClick }) {
       type="button"
       onClick={onClick || (() => navigate('/map'))}
       className={cn(
-        'w-full overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm transition-all duration-150 hover:shadow-md',
+        'w-full overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99]',
         route.recommended ? 'border-2 border-emerald-500' : 'border border-marg-border',
       )}
     >

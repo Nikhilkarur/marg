@@ -3,14 +3,14 @@ import { cva } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100',
   {
     variants: {
       variant: {
         primary:
-          'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm shadow-emerald-600/20',
-        gold: 'bg-gold-500 text-white hover:bg-gold-600 shadow-sm shadow-gold-500/20',
-        danger: 'bg-marg-danger text-white hover:bg-red-600 shadow-sm shadow-red-500/20',
+          'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm shadow-emerald-600/20 hover:shadow-md hover:shadow-emerald-600/30',
+        gold: 'bg-gold-500 text-white hover:bg-gold-600 shadow-sm shadow-gold-500/20 hover:shadow-md hover:shadow-gold-500/30',
+        danger: 'bg-marg-danger text-white hover:bg-red-600 shadow-sm shadow-red-500/20 hover:shadow-md hover:shadow-red-500/30',
         outline:
           'border border-marg-border bg-white text-marg-text hover:bg-gray-50',
         outlineDanger:
