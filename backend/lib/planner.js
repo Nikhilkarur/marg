@@ -278,7 +278,12 @@ async function planBus(fromLng, fromLat, toLng, toLat, departMin, hour, destName
   const steps = []
   steps.push({ mode: 'walk', icon: 'footprints', label: 'Walk to nearest bus stop', distance_m: 250, duration_min: walkIn, wait_min: 0, fare: 0, depart_at: hhmm(t), arrive_at: hhmm(t + walkIn), estimated: true, time_source: 'Estimate' })
   t += walkIn
-  const busDeps = [hhmm(t + wait), hhmm(t + wait + headway), hhmm(t + wait + 2 * headway)]
+  // Only list upcoming departures that are still within service hours.
+  const busDeps = []
+  for (let k = 0; k < 3; k++) {
+    const b = t + wait + k * headway
+    if (b <= BUS_LAST) busDeps.push(hhmm(b))
+  }
   steps.push({ mode: 'bus', icon: 'bus', label: 'MTC Bus (frequency estimate)', line: 'MTC Bus', board_stop: 'Nearest stop', alight_stop: 'Stop near destination', distance_m: drive.distance_m, duration_min: ride, wait_min: wait, fare: busFareByDistance(drive.distance_m), depart_at: hhmm(t + wait), arrive_at: hhmm(t + wait + ride), next_departures: busDeps, coordinates: drive.coordinates, estimated: true, time_source: 'Frequency estimate (no MTC GTFS)', fare_source: 'Est. MTC fare' })
   t += wait + ride
   steps.push({ mode: 'walk', icon: 'footprints', label: `Walk to ${destName || 'destination'}`, distance_m: 250, duration_min: walkOut, wait_min: 0, fare: 0, depart_at: hhmm(t), arrive_at: hhmm(t + walkOut), estimated: true, time_source: 'Estimate' })
@@ -358,10 +363,14 @@ function zonesNearPath(coords, zones) {
 function annotateRisk(route, hour) {
   const zones = activeZones(hour)
   const seen = new Map()
+  const RANK = { high: 3, medium: 2, low: 1 }
   for (const s of route.steps) {
     if (s.mode === 'walk' || s.mode === 'auto' || s.mode === 'bus') {
       const hits = zonesNearPath(s.coordinates, zones)
       if (hits.length) {
+        // Worst-risk zone first so the UI's summary label reflects the highest
+        // risk on the leg, not whichever zone happened to be matched first.
+        hits.sort((a, b) => (RANK[b.risk_level] || 0) - (RANK[a.risk_level] || 0) || b.risk_score - a.risk_score)
         s.risk_zones = hits.map((z) => ({ name: z.area_name, risk_level: z.risk_level, risk_score: z.risk_score }))
         hits.forEach((z) => seen.set(z.area_name, z.risk_level))
       }

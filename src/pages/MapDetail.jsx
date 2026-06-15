@@ -238,8 +238,8 @@ export default function MapDetail() {
                     <p className="mt-1 flex items-start gap-1 text-[11px] font-medium text-purple-600">
                       <ShieldCheck className="mt-0.5 size-3 shrink-0" />
                       {step.mode === 'metro'
-                        ? "Reserved women's coach available — board the first coach"
-                        : "Reserved ladies' compartment available on this local train"}
+                        ? 'Prefer the women-only / reserved seating in the front coach for added safety'
+                        : "Use the ladies' compartment available on this local train"}
                     </p>
                   )}
                 </div>
