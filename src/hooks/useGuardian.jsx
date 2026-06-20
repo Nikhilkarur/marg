@@ -130,14 +130,27 @@ export function GuardianProvider({ children }) {
       }
     }
     rec.onend = () => {
-      // Restart unless we deliberately stopped (disarm).
+      // Mobile Chrome ignores `continuous` → recognition ends after each phrase.
+      // Restart it (unless disarmed), but on a short delay: an immediate restart
+      // gets throttled/throws on mobile, which is why voice "worked on web, not
+      // phone". The delay makes the listen loop survive on mobile.
       if (voiceWantedRef.current && recognitionRef.current === rec) {
-        try { rec.start() } catch {}
+        setTimeout(() => {
+          if (voiceWantedRef.current && recognitionRef.current === rec) {
+            try { rec.start() } catch {}
+          }
+        }, 350)
       }
     }
-    rec.onerror = () => { /* network/no-speech — onend will retry */ }
+    rec.onerror = (e) => {
+      // Permission/conflict errors won't recover by retrying — stop the loop so we
+      // don't spin. Transient errors (no-speech, network) fall through to onend.
+      if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
+        voiceWantedRef.current = false
+      }
+    }
     recognitionRef.current = rec
-    try { rec.start() } catch {}
+    try { rec.start() } catch { setTimeout(() => { try { rec.start() } catch {} }, 350) }
   }, [startCountdown])
 
   const cancelCountdown = useCallback(() => {

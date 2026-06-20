@@ -58,7 +58,7 @@ function assertGeoJson(coords) {
  * @param route         { coordinates } or [[lng,lat], ...]  (GeoJSON order)
  * @param heatmapZones  [{ latitude, longitude, radius_m, risk_score, area_name }]
  */
-export default function MapComponent({ route, safeWalk = null, heatmapZones = [], safeHavens = [], havenNear = null, maxHavens = 6, center, zoom = 12 }) {
+export default function MapComponent({ route, safeWalk = null, heatmapZones = [], safeHavens = [], havenNear = null, maxHavens = 12, center, zoom = 12 }) {
   const { safeMode } = useSafeMode()
   const containerRef = useRef(null)
   const mapRef = useRef(null)
