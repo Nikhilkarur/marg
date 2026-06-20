@@ -2,62 +2,8 @@ import { useState, useEffect } from 'react'
 import { ShieldAlert, MapPin, MapPinOff, Bell, Clock, ExternalLink, Check } from 'lucide-react'
 import { useSafeMode } from '@/hooks/useSafeMode'
 import { useAuth } from '@/hooks/useAuth'
-import { triggerSos } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-
-function getEmergencyContact() {
-  try {
-    const raw = localStorage.getItem('marg_sos_contact')
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return { name: 'Emergency Contact', number: '9876543210' }
-}
-
-function playAlarm() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = 'square'
-    osc.frequency.value = 880
-    gain.gain.value = 0.15
-    osc.start()
-    const now = ctx.currentTime
-    for (let i = 0; i < 6; i++) {
-      gain.gain.setValueAtTime(0.15, now + i * 0.2)
-      gain.gain.setValueAtTime(0, now + i * 0.2 + 0.1)
-    }
-    osc.stop(now + 1.2)
-  } catch {}
-}
-
-async function sendNotification(contactName, lat, lng) {
-  if (!('Notification' in window)) return false
-  if (Notification.permission === 'default') await Notification.requestPermission()
-  if (Notification.permission !== 'granted') return false
-  const loc = lat && lng ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'Location pending'
-  new Notification('SOS Alert Sent — Marg', {
-    body: `Emergency alert sent to ${contactName}. Location: ${loc}`,
-    icon: '/vite.svg',
-    tag: 'marg-sos',
-    requireInteraction: true,
-  })
-  return true
-}
-
-function saveAlert(alert) {
-  try {
-    const key = 'marg_sos_log'
-    const log = JSON.parse(localStorage.getItem(key) || '[]')
-    log.unshift(alert)
-    localStorage.setItem(key, JSON.stringify(log.slice(0, 20)))
-  } catch {}
-}
-
-const COOLDOWN_S = 30 // matches the backend per-user throttle
+import { getEmergencyContact, formatNumber, sendSos, sosCooldownRemaining } from '@/lib/sos'
 
 export function SOSButton() {
   const { safeMode } = useSafeMode()
@@ -70,58 +16,21 @@ export function SOSButton() {
   // Cooldown countdown so a double-tap can't fire multiple real SMS (TASK 4 #15).
   useEffect(() => {
     if (!open || result) return
-    const tick = () => {
-      const last = Number(localStorage.getItem('marg_sos_last') || 0)
-      setRemaining(last ? Math.max(0, COOLDOWN_S - Math.floor((Date.now() - last) / 1000)) : 0)
-    }
+    const tick = () => setRemaining(sosCooldownRemaining())
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [open, result])
 
   const contact = getEmergencyContact()
-  const displayNumber = contact.number.startsWith('+')
-    ? contact.number
-    : `+91 ${contact.number.replace(/(\d{5})(\d{5})/, '$1 $2')}`
+  const displayNumber = formatNumber(contact.number)
 
   const send = async () => {
     if (sending || remaining > 0) return // debounce double-taps within cooldown
     setSending(true)
-    playAlarm()
-    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200])
-
-    const pos = await new Promise((resolve) =>
-      navigator.geolocation
-        ? navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { timeout: 5000 })
-        : resolve(null),
-    )
-    const lat = pos?.coords?.latitude ?? null
-    const lng = pos?.coords?.longitude ?? null
-    const timestamp = new Date()
-    const mapsUrl = lat && lng ? `https://maps.google.com/?q=${lat},${lng}` : null
-
-    const notified = await sendNotification(contact.name, lat, lng)
-
-    let backendOk = false
-    try {
-      // No user_id sent — the backend derives identity from the session token
-      // and uses the body contact only for demo users (IDOR fix, TASK 5A).
-      const data = await triggerSos({
-        lat,
-        lng,
-        user_name: user?.user_metadata?.full_name || 'Marg User',
-        contact_name: contact.name,
-        contact_number: contact.number,
-      })
-      backendOk = data?.success !== false
-    } catch {}
-
-    localStorage.setItem('marg_sos_last', String(Date.now())) // start cooldown
-    const alert = { timestamp: timestamp.toISOString(), lat, lng, contact: contact.name, mapsUrl }
-    saveAlert(alert)
-
+    const res = await sendSos(user, { trigger: 'manual' })
     setSending(false)
-    setResult({ lat, lng, mapsUrl, timestamp, notified, backendOk, contactName: contact.name })
+    setResult(res)
   }
 
   const close = () => {
@@ -135,7 +44,7 @@ export function SOSButton() {
         type="button"
         onClick={() => { setOpen(true); setResult(null) }}
         aria-label="Send emergency SOS"
-        className="fixed bottom-20 right-5 z-50 flex size-14 flex-col items-center justify-center rounded-full bg-marg-danger text-white shadow-xl shadow-red-500/30 transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
+        className="fixed bottom-[5.25rem] right-4 z-50 flex size-14 flex-col items-center justify-center rounded-full bg-marg-danger text-white shadow-xl shadow-red-500/30 ring-4 ring-white transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6 md:ring-0"
       >
         {safeMode && (
           <span className="absolute inset-0 animate-ping rounded-full bg-marg-danger/50" />

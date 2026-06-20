@@ -35,11 +35,12 @@ app.use('/api/safety', require('./routes/safety'))
 app.use('/api/sos', sosLimiter, require('./routes/sos'))
 app.use('/api/chat', chatLimiter, require('./routes/chat'))
 app.use('/api/trips', tripsLimiter, require('./routes/trips'))
+app.use('/api/track', require('./routes/track'))
 
 app.get('/', (req, res) =>
   res.json({
     status: 'Marg API online',
-    endpoints: ['/api/routes', '/api/safety/heatmap', '/api/sos', '/api/chat', '/api/trips'],
+    endpoints: ['/api/routes', '/api/safety/heatmap', '/api/sos', '/api/chat', '/api/trips', '/api/track'],
   }),
 )
 

@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Navigation, Mail, Lock } from 'lucide-react'
+import { Navigation, Mail, Lock, Mic, Check, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase, supabaseEnabled } from '@/lib/supabase'
+import { requestMicPermission, micPreviouslyGranted } from '@/lib/mic'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -11,6 +12,10 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Pre-grant mic with a tap-to-allow primer (no surprise browser prompt on load)
+  // so the Audio Guardian never has to interrupt mid-trip.
+  const [micState, setMicState] = useState(() => (micPreviouslyGranted() ? 'granted' : 'idle'))
+  const allowMic = () => { setMicState('requesting'); requestMicPermission().then(setMicState) }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -85,7 +90,45 @@ export default function Login() {
           </Link>
         </p>
 
-        <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-xs leading-relaxed text-amber-900">
+        {/* Professional mic-permission primer for the AI Audio Guardian */}
+        <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+              <ShieldCheck className="size-5 text-emerald-600" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-marg-text">Enable hands-free safety</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-marg-muted">
+                Marg&apos;s AI Guardian can listen for distress during your trip and auto-alert your contact.
+                Audio is analysed <strong>on your device</strong> and never recorded or uploaded.
+              </p>
+            </div>
+          </div>
+          {micState === 'granted' ? (
+            <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-emerald-600 p-2.5 text-xs font-semibold text-white">
+              <Check className="size-4" /> Microphone enabled
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={allowMic}
+                disabled={micState === 'requesting'}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+              >
+                <Mic className="size-4" />
+                {micState === 'requesting' ? 'Requesting…' : 'Allow microphone'}
+              </button>
+              {micState === 'denied' && (
+                <p className="mt-2 text-center text-[11px] text-amber-700">
+                  No problem — you can enable it later; the Guardian will ask again when you turn on Safe Mode.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-xs leading-relaxed text-amber-900">
           <strong>Note:</strong> Marg is an MVP built as a web app to avoid Google Play deployment constraints for this hackathon.
           <br className="my-1" />
           <span className="font-bold">It currently only works for locations in Chennai.</span>

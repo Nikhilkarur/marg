@@ -1,15 +1,18 @@
 import { Link, useLocation } from 'react-router-dom'
-import { MapPin, Clock, User } from 'lucide-react'
+import { MapPin, Clock, User, ShieldCheck } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const tabs = [
-  { label: 'Home', to: '/home', icon: MapPin, match: ['/home', '/results', '/map'] },
-  { label: 'Trips', to: '/trips', icon: Clock, match: ['/trips'] },
-  { label: 'Profile', to: '/profile', icon: User, match: ['/profile'] },
+  { key: 'nav.home', to: '/home', icon: MapPin, match: ['/home', '/results', '/map'] },
+  { key: 'nav.trips', to: '/trips', icon: Clock, match: ['/trips'] },
+  { key: 'nav.safety', to: '/safety', icon: ShieldCheck, match: ['/safety'] },
+  { key: 'nav.profile', to: '/profile', icon: User, match: ['/profile'] },
 ]
 
 export function BottomNav() {
   const { pathname } = useLocation()
+  const { t } = useT()
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-marg-border bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
@@ -26,7 +29,7 @@ export function BottomNav() {
             )}
           >
             <Icon className="size-5" strokeWidth={active ? 2.4 : 2} />
-            {tab.label}
+            {t(tab.key)}
           </Link>
         )
       })}

@@ -56,6 +56,7 @@ export default function Trips() {
   // Start with the user's real recent searches (empty for a brand-new user — no
   // more fake sample journeys). Signed-in users get their richer saved trips.
   const [trips, setTrips] = useState(() => loadRecentTrips().map(recentToCard))
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
@@ -64,6 +65,7 @@ export default function Trips() {
         if (active && rows?.length) setTrips(rows.map(savedToCard))
       })
       .catch(() => {})
+      .finally(() => active && setLoading(false))
     return () => {
       active = false
     }
@@ -92,7 +94,14 @@ export default function Trips() {
         <h1 className="text-2xl font-bold text-marg-text">My Trips</h1>
         <p className="mb-5 mt-1 text-sm text-marg-muted">Your planned journeys across Chennai</p>
 
-        {trips.length === 0 ? (
+        {loading && trips.length === 0 ? (
+          /* Loading skeleton while saved trips are fetched (signed-in users). */
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-2xl border border-marg-border bg-white" />
+            ))}
+          </div>
+        ) : trips.length === 0 ? (
           /* Honest empty state — a new user has no history (TASK 4 #25). */
           <div className="mt-6 flex flex-col items-center rounded-2xl border border-dashed border-marg-border bg-white px-6 py-14 text-center">
             <span className="flex size-14 items-center justify-center rounded-full bg-emerald-50">

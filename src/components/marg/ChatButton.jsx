@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Sparkles, Send, X } from 'lucide-react'
 import { useSafeMode } from '@/hooks/useSafeMode'
 import { askAssistant } from '@/lib/api'
@@ -6,7 +7,45 @@ import { HEATMAP_ZONES } from '@/data/heatmapZones'
 import { loadTripState } from '@/lib/tripState'
 import { cn } from '@/lib/utils'
 
-const QUICK = ['Is my route safe?', 'Cheapest option?', 'Late-night tips']
+// Marg AI is page-aware: its greeting, quick prompts, and the context it sends to
+// the model depend on where the user currently is, so it helps with *this* screen.
+function pageContext(pathname) {
+  if (pathname.startsWith('/results'))
+    return {
+      where: 'comparing route options',
+      greeting: "You're comparing routes. Want me to explain which is safest, fastest or best value — or why the top one is recommended?",
+      quick: ['Which route is safest?', 'Why is this recommended?', 'Cheapest option?'],
+    }
+  if (pathname.startsWith('/map'))
+    return {
+      where: 'viewing the details of one route',
+      greeting: "Looking at your route details. Ask me about any leg — its safety, timing, or where to change.",
+      quick: ['Is this route safe?', "When's the next train?", 'Any risky stretch?'],
+    }
+  if (pathname.startsWith('/safety'))
+    return {
+      where: 'in the Safety Center',
+      greeting: "This is your Safety Center. I can explain the AI Audio Guardian, SOS, the voice safe-word, or live location sharing.",
+      quick: ['How does the Guardian work?', 'What is a safe word?', 'How does SOS work?'],
+    }
+  if (pathname.startsWith('/trips'))
+    return {
+      where: 'looking at past trips',
+      greeting: "Want to re-run a past trip or plan a new one? I can also suggest the safest time to travel.",
+      quick: ['Plan a new trip', 'Safest time to travel'],
+    }
+  if (pathname.startsWith('/profile'))
+    return {
+      where: 'on the profile/settings screen',
+      greeting: "Manage your account, language and emergency contact here. Ask me anything about how Marg works.",
+      quick: ['Change language', 'Set emergency contact'],
+    }
+  return {
+    where: 'planning a trip on the home screen',
+    greeting: "I'm Marg AI. Tell me where you're headed and I'll find the safest, fastest or cheapest way — or ask anything about Chennai transit.",
+    quick: ['Safest way after dark?', 'Cheapest mode?', 'Is the metro running now?'],
+  }
+}
 
 function reply(input, safeMode) {
   const q = input.toLowerCase()
@@ -25,6 +64,8 @@ function reply(input, safeMode) {
 
 export function ChatButton() {
   const { safeMode } = useSafeMode()
+  const { pathname } = useLocation()
+  const ctx = pageContext(pathname)
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState([])
@@ -34,15 +75,9 @@ export function ChatButton() {
 
   useEffect(() => {
     if (open && messages.length === 0) {
-      setMessages([
-        {
-          id: ++idRef.current,
-          role: 'ai',
-          text: "I'm Marg AI. I can compare your routes on safety, cost and time, or suggest the safer option after dark.",
-        },
-      ])
+      setMessages([{ id: ++idRef.current, role: 'ai', text: ctx.greeting }])
     }
-  }, [open, messages.length])
+  }, [open, messages.length, ctx.greeting])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -65,7 +100,10 @@ export function ChatButton() {
         // No hour sent — the backend uses Chennai (IST) time so the assistant's
         // day/night advice is correct regardless of the viewer's timezone.
         crime_count: HEATMAP_ZONES.length,
-        route_context: `${from} → ${to}`,
+        // Fold the current screen into the context so the AI helps with what the
+        // user is actually looking at, not just generic trip advice.
+        route_context: `User is ${ctx.where}. Trip: ${from} → ${to}`,
+        page: ctx.where,
       })
       answer = data.reply
     } catch {
@@ -84,10 +122,10 @@ export function ChatButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open Marg AI assistant"
-        className="fixed bottom-[9.25rem] right-5 z-50 flex items-center gap-2 rounded-full bg-emerald-600 py-3 pl-4 pr-5 text-white shadow-xl shadow-emerald-600/30 transition-transform hover:scale-105 active:scale-95 md:bottom-auto md:right-6 md:top-20"
+        className="fixed bottom-[5.25rem] right-[5.5rem] z-50 flex size-14 items-center justify-center gap-2 rounded-full bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 ring-4 ring-white transition-transform hover:scale-105 active:scale-95 md:bottom-auto md:right-6 md:top-20 md:size-auto md:py-3 md:pl-4 md:pr-5 md:ring-0"
       >
-        <Sparkles className="size-5" />
-        <span className="text-sm font-semibold">Marg AI</span>
+        <Sparkles className="size-5 shrink-0" />
+        <span className="hidden text-sm font-semibold md:inline">Marg AI</span>
       </button>
 
       {open && (
@@ -149,7 +187,7 @@ export function ChatButton() {
 
             {/* Quick prompts */}
             <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2">
-              {QUICK.map((q) => (
+              {ctx.quick.map((q) => (
                 <button
                   key={q}
                   type="button"

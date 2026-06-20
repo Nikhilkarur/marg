@@ -29,13 +29,18 @@ const MAX_SNAP_M = 6000 // allow a transit + auto last-mile combo for longer tri
 const WALK_MAX_M = 900 // access/egress ROAD distance within this → walk, else auto
 const TRANSFER_BUFFER = 4 // min cushion when changing trains/lines
 const SHORT_TRIP_M = 350 // origin≈destination → short hop only (#9)
+// Public OSRM returns free-flow car time; real Chennai auto/cab trips sit in
+// dense traffic, so scale the drive time up to a realistic door-to-door figure.
+const AUTO_TRAFFIC = 1.4
 
 // ---- access / egress (first & last mile) ----------------------------------
 async function accessLeg(fromLng, fromLat, station, startMin, toDest = false, destName) {
   const leg = await legOrEstimate(fromLng, fromLat, station.lng, station.lat, 'auto')
   const walk = leg.distance_m <= WALK_MAX_M
   const mode = walk ? 'walk' : 'auto'
-  const duration_min = walk ? Math.max(1, Math.round((leg.distance_m / 1000 / 5) * 60)) : leg.duration_min
+  const duration_min = walk
+    ? Math.max(1, Math.round((leg.distance_m / 1000 / 5) * 60))
+    : Math.max(1, Math.round(leg.duration_min * AUTO_TRAFFIC))
   const arrive = startMin + duration_min
   return {
     step: {
@@ -238,13 +243,14 @@ async function planTransit(fromLng, fromLat, toLng, toLat, departMin, hour, dest
 // ---- direct auto ----------------------------------------------------------
 async function planAuto(fromLng, fromLat, toLng, toLat, departMin, destName) {
   const leg = await legOrEstimate(fromLng, fromLat, toLng, toLat, 'auto')
-  const arrive = departMin + leg.duration_min
+  const driveMin = Math.max(1, Math.round(leg.duration_min * AUTO_TRAFFIC))
+  const arrive = departMin + driveMin
   const step = {
     mode: 'auto',
     icon: 'car',
     label: `Auto to ${destName || 'destination'}`,
     distance_m: leg.distance_m,
-    duration_min: leg.duration_min,
+    duration_min: driveMin,
     wait_min: 0,
     fare: autoFare(leg.distance_m),
     depart_at: hhmm(departMin),

@@ -6,3 +6,8 @@ dist-ssr
 .vite
 .env
 backend/node_modules
+
+# Internal agent-to-agent handoff / strategy notes — kept local, not for the public repo
+HACKATHON_FINALE.md
+HANDOFF_NEXT.md
+HANDOFF_QUICK.md

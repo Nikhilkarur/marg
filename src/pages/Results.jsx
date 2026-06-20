@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ChevronLeft, Info, Footprints, Train, TrainFront, Car, Bus, Moon } from 'lucide-react'
+import { ChevronLeft, Info, Footprints, Train, TrainFront, Car, Bus, Moon, Columns3, List } from 'lucide-react'
 import { AppLayout } from '@/components/marg/AppLayout'
 import MapComponent from '@/components/marg/MapComponent'
 import { RouteCard } from '@/components/marg/RouteCard'
+import { RouteCompare } from '@/components/marg/RouteCompare'
 import { useSafeMode } from '@/hooks/useSafeMode'
-import { fetchRoutes, fetchHeatmap, fetchDirections, saveTrip } from '@/lib/api'
+import { useT } from '@/lib/i18n'
+import { fetchRoutes, fetchHeatmap, fetchDirections, snapRouteToRoads, saveTrip } from '@/lib/api'
 import { saveTripState, loadTripState } from '@/lib/tripState'
+import { withReports } from '@/lib/reports'
+import { useSafeHavens } from '@/hooks/useSafeHavens'
 import { cn } from '@/lib/utils'
 
 const DEFAULT_ORIGIN = { name: 'Anna Nagar, Chennai', lat: 13.085, lng: 80.2101 }
@@ -28,30 +32,86 @@ const FALLBACK_ROUTES = [
 ]
 
 const SORTS = [
-  { key: 'fastest', label: 'Fastest' },
-  { key: 'safest', label: 'Safest' },
-  { key: 'cheapest', label: 'Cheapest' },
+  { key: 'best', tkey: 'sort.best' },
+  { key: 'fastest', tkey: 'sort.fastest' },
+  { key: 'safest', tkey: 'sort.safest' },
+  { key: 'cheapest', tkey: 'sort.cheapest' },
 ]
-const RECO_LABEL = {
-  fastest: 'Recommended — Fastest Route',
-  safest: 'Recommended — Safest Route',
-  cheapest: 'Recommended — Cheapest Route',
+const MODE_LABEL = { walk: 'Walk', metro: 'Metro', train: 'Train', auto: 'Auto', bus: 'Bus' }
+const TRANSIT_MODES = new Set(['metro', 'train', 'bus'])
+
+// Minutes from now until an "HH:MM" wall-clock time (today). Null if unparseable
+// or already past by more than a couple of minutes.
+function minsUntil(hhmm) {
+  if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return null
+  const [h, m] = hhmm.split(':').map(Number)
+  const now = new Date()
+  const t = new Date(now)
+  t.setHours(h, m, 0, 0)
+  const diff = Math.round((t - now) / 60000)
+  return diff < -2 ? null : diff
 }
 
-function toCard(route, index, sort) {
+// Passenger-km CO₂ factors (kg/km), public sources (incl. CMRL): a private car is
+// the baseline we save against; transit modes are far lower.
+const EMISSION = { car: 0.139, auto: 0.11, bus: 0.051, metro: 0.028, train: 0.035, walk: 0 }
+const TRANSIT_ORDER = ['metro', 'train', 'bus', 'auto']
+
+function haversineKm(a, b) {
+  const R = 6371
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180
+  const la1 = (a.lat * Math.PI) / 180
+  const la2 = (b.lat * Math.PI) / 180
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+// How much CO₂ this route saves vs driving the same trip in a private car.
+function co2SavedKg(route, tripKm) {
+  const mode = TRANSIT_ORDER.find((m) => route.modes?.includes(m)) || 'auto'
+  return Math.max(0, tripKm * (EMISSION.car - EMISSION[mode]))
+}
+
+function toCard(route, index, sort, tripKm, t) {
   const steps = route.steps?.length ? route.steps : route.modes.map((m) => ({ mode: m }))
+  const saved = co2SavedKg(route, tripKm)
+  // First transit leg drives the "next departure" readout (real timetable data).
+  const transitLeg = steps.find((s) => TRANSIT_MODES.has(s.mode))
+  const nextDeps = (transitLeg?.next_departures || []).filter(Boolean).slice(0, 3)
+  const departIn = transitLeg?.depart_at ? minsUntil(transitLeg.depart_at) : null
   return {
     id: route.id,
-    legs: steps.map((s) => MODE_ICON[s.mode] || MODE_ICON.walk),
-    time: `${route.total_time} min`,
+    legs: steps.map((s) => ({ ...(MODE_ICON[s.mode] || MODE_ICON.walk), label: MODE_LABEL[s.mode] || 'Walk', mode: s.mode })),
+    time: route.total_time,
     fare: `₹${route.total_fare}`,
     safety: route.safety_score,
     transfers: route.transfers,
     schedule: route.depart_at && route.arrive_at ? `${route.depart_at} – ${route.arrive_at}` : null,
+    co2: saved >= 0.2 ? `${saved.toFixed(1)} kg` : null,
+    line: transitLeg?.line || null,
+    nextDeps,
+    departIn,
     warning: route.safety_score < 60 ? 'Includes an isolated stretch — caution after dark' : null,
     recommended: index === 0,
-    recommendedLabel: RECO_LABEL[sort],
+    recommendedLabel: t(`reco.${sort}`),
   }
+}
+
+// Balanced "Best" score: normalise time/fare/safety across the result set so no
+// single dimension dominates. Lower time & fare are better; higher safety better.
+function rankBest(list) {
+  if (list.length < 2) return list
+  const times = list.map((r) => r.total_time)
+  const fares = list.map((r) => r.total_fare)
+  const tMin = Math.min(...times), tMax = Math.max(...times)
+  const fMin = Math.min(...fares), fMax = Math.max(...fares)
+  const norm = (v, lo, hi) => (hi === lo ? 0 : (v - lo) / (hi - lo))
+  const score = (r) =>
+    0.4 * norm(r.total_time, tMin, tMax) + // 0 = fastest
+    0.3 * norm(r.total_fare, fMin, fMax) + // 0 = cheapest
+    0.3 * (1 - (r.safety_score ?? 0) / 100) // 0 = safest
+  return [...list].sort((a, b) => score(a) - score(b))
 }
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
@@ -60,6 +120,7 @@ export default function Results() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const { safeMode } = useSafeMode()
+  const { t } = useT()
   // Restore from sessionStorage on a hard refresh (state is lost) so we keep
   // the user's real trip instead of reverting to the default (TASK 4 #22).
   const restored = state || loadTripState()
@@ -67,8 +128,8 @@ export default function Results() {
   const destination = restored?.destination || DEFAULT_DEST
   const departMin = Number.isFinite(restored?.departMin) ? restored.departMin : null
   const departLabel = departMin != null
-    ? `Departing ${String(Math.floor(departMin / 60)).padStart(2, '0')}:${String(departMin % 60).padStart(2, '0')}`
-    : 'Departing now'
+    ? t('results.departingAt', { time: `${String(Math.floor(departMin / 60)).padStart(2, '0')}:${String(departMin % 60).padStart(2, '0')}` })
+    : t('results.departingNow')
 
   const [routes, setRoutes] = useState([])
   const [zones, setZones] = useState([])
@@ -78,14 +139,15 @@ export default function Results() {
   // instead of showing frozen-looking skeletons.
   const [slowLoad, setSlowLoad] = useState(false)
   const [fallbackLine, setFallbackLine] = useState(null)
-  const [sort, setSort] = useState('safest')
+  const [sort, setSort] = useState('best')
+  const [compare, setCompare] = useState(false)
   // Set when the user taps a mode chip on Home (Bus/Metro/Train/Auto).
   const [modeFilter, setModeFilter] = useState(restored?.mode || null)
   // The backend's IST hour for this result, so we can explain late-night gaps.
   const [serverHour, setServerHour] = useState(null)
 
   useEffect(() => {
-    setSort(safeMode ? 'safest' : 'fastest')
+    setSort(safeMode ? 'safest' : 'best')
   }, [safeMode])
 
   // Keep the active mode filter in sessionStorage so a refresh doesn't revert to
@@ -133,12 +195,57 @@ export default function Results() {
     const list = [...routes]
     if (sort === 'safest') list.sort((a, b) => b.safety_score - a.safety_score)
     else if (sort === 'cheapest') list.sort((a, b) => a.total_fare - b.total_fare)
-    else list.sort((a, b) => a.total_time - b.total_time)
+    else if (sort === 'fastest') list.sort((a, b) => a.total_time - b.total_time)
+    else return rankBest(list)
     return list
   }, [routes, sort])
 
+  // Straight-line distance + a detour factor → a "good enough" trip length for the
+  // CO₂-saved estimate on each card (no per-leg distance needed from the backend).
+  const tripKm = useMemo(() => haversineKm(origin, destination) * 1.25, [origin.lat, origin.lng, destination.lat, destination.lng])
+
+  // Rows for the side-by-side comparison (top routes, raw numbers).
+  const compareRows = useMemo(
+    () =>
+      sorted.slice(0, 4).map((r) => {
+        const modes = (r.modes || r.steps?.map((s) => s.mode) || [])
+          .filter((m) => m !== 'walk')
+          .filter((m, i, a) => a.indexOf(m) === i)
+          .map((m) => MODE_LABEL[m] || m)
+        return {
+          id: r.id,
+          label: modes.length ? modes.join(' + ') : 'Walk',
+          time: r.total_time,
+          fare: r.total_fare,
+          safety: r.safety_score,
+          co2Kg: co2SavedKg(r, tripKm),
+        }
+      }),
+    [sorted, tripKm],
+  )
+
   const noneForMode = !loading && modeFilter && sorted.length === 0
-  const mapCoords = sorted[0]?.coordinates?.length ? sorted[0].coordinates : fallbackLine
+
+  // Snap the top route's line to roads for the map (falls back to raw coords).
+  const [snappedTop, setSnappedTop] = useState(null)
+  const topRoute = sorted[0]
+  useEffect(() => {
+    let cancelled = false
+    setSnappedTop(null)
+    if (topRoute?.steps?.length) {
+      snapRouteToRoads(topRoute).then((line) => !cancelled && line && setSnappedTop(line)).catch(() => {})
+    }
+    return () => { cancelled = true }
+  }, [topRoute?.id, sort])
+
+  const mapCoords = snappedTop || (topRoute?.coordinates?.length ? topRoute.coordinates : fallbackLine)
+
+  // Live safe-havens around the trip mid-point.
+  const havenCenter = useMemo(
+    () => ({ lat: (origin.lat + destination.lat) / 2, lng: (origin.lng + destination.lng) / 2 }),
+    [origin.lat, origin.lng, destination.lat, destination.lng],
+  )
+  const safeHavens = useSafeHavens(havenCenter)
 
   // Late-night context: metro/suburban/bus stop running ~11pm–4:30am, so the
   // honest reason for "only autos" (or no result for a transit mode) is the
@@ -149,7 +256,7 @@ export default function Results() {
   const modeClosedAtNight = lateNight && (modeFilter === 'metro' || modeFilter === 'train' || modeFilter === 'bus')
 
   return (
-    <AppLayout chat map={<MapComponent route={mapCoords} heatmapZones={zones} />}>
+    <AppLayout chat map={<MapComponent route={mapCoords} heatmapZones={withReports(zones)} safeHavens={safeHavens} />}>
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-marg-border p-4">
         <button
@@ -165,35 +272,68 @@ export default function Results() {
             {origin.short || origin.name?.split(',')[0]} → {destination.short || destination.name?.split(',')[0]}
           </p>
           <p className="text-xs text-marg-muted">
-            {departLabel} · {loading ? 'finding routes…' : `${sorted.length} ${modeFilter ? cap(modeFilter) + ' ' : ''}route${sorted.length === 1 ? '' : 's'} found`}
+            {departLabel} · {loading ? t('results.finding') : t(sorted.length === 1 ? 'results.routeFound' : 'results.routesFound', { n: sorted.length, mode: modeFilter ? t('mode.' + modeFilter) + ' ' : '' })}
           </p>
         </div>
       </div>
 
-      {/* Sort tabs */}
-      <div className="flex gap-2 px-4 pb-2 pt-3">
-        {SORTS.map((s) => {
-          const active = sort === s.key
-          const isSafe = s.key === 'safest'
-          return (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => setSort(s.key)}
-              className={cn(
-                'rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-150',
-                active
-                  ? isSafe
-                    ? 'bg-gold-500 text-white'
-                    : 'bg-emerald-600 text-white'
-                  : 'border border-marg-border text-marg-muted hover:text-marg-text',
-              )}
-            >
-              {s.label}
-            </button>
-          )
-        })}
+      {/* Sort tabs + compare toggle */}
+      <div className="flex items-center gap-2 px-4 pb-2 pt-3">
+        <div className="flex flex-1 gap-1.5 overflow-x-auto">
+          {SORTS.map((s) => {
+            const active = sort === s.key
+            const isSafe = s.key === 'safest'
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setSort(s.key)}
+                className={cn(
+                  'shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors duration-150',
+                  active
+                    ? isSafe
+                      ? 'bg-gold-500 text-white'
+                      : 'bg-emerald-600 text-white'
+                    : 'border border-marg-border text-marg-muted hover:text-marg-text',
+                )}
+              >
+                {t(s.tkey)}
+              </button>
+            )
+          })}
+        </div>
+        {!loading && sorted.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setCompare((c) => !c)}
+            aria-pressed={compare}
+            className={cn(
+              'flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+              compare ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-marg-border text-marg-muted hover:text-marg-text',
+            )}
+          >
+            {compare ? <List className="size-3.5" /> : <Columns3 className="size-3.5" />}
+            {compare ? t('results.list') : t('results.compare')}
+          </button>
+        )}
       </div>
+
+      {/* Comparison panel */}
+      {compare && !loading && sorted.length > 1 && (
+        <div className="px-4 pb-1 pt-1">
+          <RouteCompare
+            rows={compareRows}
+            onPick={(id) => {
+              const route = sorted.find((r) => r.id === id)
+              if (!route) return
+              const trip = { route, origin, destination, zones }
+              saveTripState(trip)
+              navigate('/map', { state: trip })
+            }}
+          />
+          <p className="mt-1.5 px-1 text-[11px] text-marg-muted">Best value in each column is highlighted · tap a row to open</p>
+        </div>
+      )}
 
       {/* Active mode filter chip */}
       {modeFilter && (
@@ -220,7 +360,7 @@ export default function Results() {
       )}
 
       {/* Cards */}
-      <div className="flex flex-col gap-3 px-4 pb-2">
+      <div className={cn('flex flex-col gap-3 px-4 pb-2', compare && !loading && 'hidden')}>
         {loading ? (
           <>
             {[0, 1, 2].map((i) => (
@@ -254,7 +394,7 @@ export default function Results() {
           sorted.map((route, i) => (
             <div key={route.id} className="animate-fade-up" style={{ animationDelay: `${i * 70}ms` }}>
               <RouteCard
-                route={toCard(route, i, sort)}
+                route={toCard(route, i, sort, tripKm, t)}
                 onClick={() => {
                   const trip = { route, origin, destination, zones }
                   saveTripState(trip) // persist the chosen route for /map refreshes

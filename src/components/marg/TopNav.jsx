@@ -4,18 +4,21 @@ import { Switch } from '@/components/ui/switch'
 import { Avatar } from '@/components/ui/avatar'
 import { useSafeMode } from '@/hooks/useSafeMode'
 import { useAuth } from '@/hooks/useAuth'
+import { useT } from '@/lib/i18n'
 import { cn, initials } from '@/lib/utils'
 
 const tabs = [
-  { label: 'Plan', to: '/home', match: ['/home', '/results', '/map'] },
-  { label: 'Trips', to: '/trips', match: ['/trips'] },
-  { label: 'Profile', to: '/profile', match: ['/profile'] },
+  { key: 'nav.plan', to: '/home', match: ['/home', '/results', '/map'] },
+  { key: 'nav.trips', to: '/trips', match: ['/trips'] },
+  { key: 'nav.safety', to: '/safety', match: ['/safety'] },
+  { key: 'nav.profile', to: '/profile', match: ['/profile'] },
 ]
 
 export function TopNav() {
   const { pathname } = useLocation()
   const { safeMode, toggle } = useSafeMode()
   const { user } = useAuth()
+  const { t, lang, setLanguage } = useT()
 
   return (
     <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b border-marg-border bg-white/90 px-6 backdrop-blur md:flex">
@@ -42,7 +45,7 @@ export function TopNav() {
                   : 'text-marg-muted hover:text-marg-text',
               )}
             >
-              {tab.label}
+              {t(tab.key)}
               {active && (
                 <span className="absolute inset-x-3 -bottom-[21px] h-0.5 rounded-full bg-emerald-600" />
               )}
@@ -53,6 +56,22 @@ export function TopNav() {
 
       {/* Right */}
       <div className="flex items-center gap-4">
+        {/* Language toggle */}
+        <div className="flex overflow-hidden rounded-full border border-marg-border">
+          {[{ id: 'en', label: 'EN' }, { id: 'ta', label: 'தமிழ்' }].map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => setLanguage(l.id)}
+              className={cn(
+                'px-2.5 py-1 text-xs font-medium transition-colors',
+                lang === l.id ? 'bg-emerald-600 text-white' : 'text-marg-muted hover:text-marg-text',
+              )}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-2">
           <Shield
             className={cn(
@@ -67,7 +86,7 @@ export function TopNav() {
               safeMode ? 'text-gold-600' : 'text-marg-text',
             )}
           >
-            Safe Mode
+            {t('nav.safeMode')}
           </span>
           <Switch
             checked={safeMode}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Share2, BellRing, Check } from 'lucide-react'
+import { Share2, BellRing, Check, Radio, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { startTracking, newTrackId, trackUrl } from '@/lib/track'
 
 function getContact() {
   try {
@@ -13,18 +14,49 @@ function getContact() {
 }
 
 /**
- * Women-safety helpers on a route: share the trip + ETA with a contact, and arm
- * a "reached safely" check-in that nudges (browser notification) at the ETA so a
- * contact can be alerted if you don't confirm. (Live GPS tracking would need a
- * backend; this shares trip details + a one-tap location link instead.)
+ * Women-safety helpers on a route: share the trip + ETA with a contact, arm a
+ * "reached safely" check-in that nudges (browser notification) at the ETA, and
+ * share a live-tracking link a contact can open to follow the journey on a map.
  */
 export function TripSafety({ origin, destination, route }) {
   const [shared, setShared] = useState(false)
   const [armed, setArmed] = useState(false)
+  const [tracking, setTracking] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const timer = useRef(null)
+  const stopTrackRef = useRef(null)
+  const linkRef = useRef('')
   const contact = getContact()
 
-  useEffect(() => () => clearTimeout(timer.current), [])
+  useEffect(() => () => { clearTimeout(timer.current); stopTrackRef.current?.() }, [])
+
+  const startLive = async () => {
+    const id = newTrackId()
+    const url = trackUrl(id)
+    linkRef.current = url
+    const dest = destination?.lat != null
+      ? { lat: destination.lat, lng: destination.lng, name: destination.short || destination.name?.split(',')[0] }
+      : null
+    stopTrackRef.current = startTracking(id, dest)
+    setTracking(true)
+    const text = `Follow my live trip on Marg — you can see where I am until I arrive:\n${url}`
+    try {
+      if (navigator.share) await navigator.share({ title: 'My live Marg trip', text })
+      else { await navigator.clipboard.writeText(text); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500) }
+    } catch {
+      /* user cancelled the share sheet — link is still active */
+    }
+  }
+
+  const stopLive = () => {
+    stopTrackRef.current?.()
+    stopTrackRef.current = null
+    setTracking(false)
+  }
+
+  const copyLink = async () => {
+    try { await navigator.clipboard.writeText(linkRef.current); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) } catch {}
+  }
 
   const share = async () => {
     const from = origin?.name || origin?.short || 'my origin'
@@ -76,20 +108,48 @@ export function TripSafety({ origin, destination, route }) {
   }
 
   return (
-    <div className="mx-4 mt-3 grid grid-cols-2 gap-2">
-      <Button variant="outline" onClick={share}>
-        {shared ? <Check className="size-4" /> : <Share2 className="size-4" />}
-        {shared ? 'Shared' : 'Share trip'}
-      </Button>
-      {armed ? (
-        <Button variant="outline" onClick={arrived}>
-          <Check className="size-4" />
-          I&apos;ve arrived
+    <div className="mx-4 mt-3 flex flex-col gap-2">
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" onClick={share}>
+          {shared ? <Check className="size-4" /> : <Share2 className="size-4" />}
+          {shared ? 'Shared' : 'Share trip'}
         </Button>
+        {armed ? (
+          <Button variant="outline" onClick={arrived}>
+            <Check className="size-4" />
+            I&apos;ve arrived
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={arm}>
+            <BellRing className="size-4" />
+            Check-in on arrival
+          </Button>
+        )}
+      </div>
+
+      {tracking ? (
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3">
+          <div className="flex items-center gap-2">
+            <span className="relative flex size-2.5">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
+            </span>
+            <span className="text-sm font-semibold text-emerald-800">Live tracking on — sharing your location</span>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={copyLink} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-100">
+              {linkCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              {linkCopied ? 'Link copied' : 'Copy link'}
+            </button>
+            <button type="button" onClick={stopLive} className="rounded-lg border border-marg-border bg-white px-3 py-2 text-xs font-medium text-marg-danger hover:bg-red-50">
+              Stop sharing
+            </button>
+          </div>
+        </div>
       ) : (
-        <Button variant="outline" onClick={arm}>
-          <BellRing className="size-4" />
-          Check-in on arrival
+        <Button variant="outline" onClick={startLive}>
+          <Radio className="size-4" />
+          Share live location tracking
         </Button>
       )}
     </div>

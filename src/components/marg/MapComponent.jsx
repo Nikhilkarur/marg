@@ -5,12 +5,39 @@ import { useSafeMode } from '@/hooks/useSafeMode'
 
 const CHENNAI = [13.0827, 80.2707] // [lat, lng]
 
+// Rough distance (km) between two [lat,lng] points — used to show only the
+// nearest few safe havens so the map doesn't turn into a pile of badges.
+function distKm(a, b) {
+  const dLat = ((b[0] - a[0]) * Math.PI) / 180
+  const dLng = ((b[1] - a[1]) * Math.PI) / 180
+  const la1 = (a[0] * Math.PI) / 180
+  const la2 = (b[0] * Math.PI) / 180
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.sqrt(h))
+}
+
 function dotIcon(color) {
   return L.divIcon({
     className: 'marg-pin',
     html: `<span style="display:block;width:18px;height:18px;border-radius:9999px;background:${color};border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)"></span>`,
     iconSize: [18, 18],
     iconAnchor: [9, 9],
+  })
+}
+
+// Safe-haven markers: a small white badge with a coloured glyph per type.
+const HAVEN_STYLE = {
+  police: { bg: '#2563EB', glyph: '🛡' },
+  hospital: { bg: '#DC2626', glyph: '✚' },
+  pharmacy: { bg: '#059669', glyph: '✚' },
+}
+function havenIcon(type) {
+  const s = HAVEN_STYLE[type] || HAVEN_STYLE.police
+  return L.divIcon({
+    className: 'marg-haven',
+    html: `<span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#fff;border:2px solid ${s.bg};color:${s.bg};font-size:12px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.3)">${s.glyph}</span>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   })
 }
 
@@ -31,11 +58,11 @@ function assertGeoJson(coords) {
  * @param route         { coordinates } or [[lng,lat], ...]  (GeoJSON order)
  * @param heatmapZones  [{ latitude, longitude, radius_m, risk_score, area_name }]
  */
-export default function MapComponent({ route, heatmapZones = [], center, zoom = 12 }) {
+export default function MapComponent({ route, safeWalk = null, heatmapZones = [], safeHavens = [], havenNear = null, maxHavens = 6, center, zoom = 12 }) {
   const { safeMode } = useSafeMode()
   const containerRef = useRef(null)
   const mapRef = useRef(null)
-  const layers = useRef({ route: null, markers: [], zones: [] })
+  const layers = useRef({ route: null, markers: [], zones: [], havens: [], safeWalk: null })
   const [tileError, setTileError] = useState(false)
 
   const coords = Array.isArray(route) ? route : route?.coordinates
@@ -83,7 +110,7 @@ export default function MapComponent({ route, heatmapZones = [], center, zoom = 
       window.removeEventListener('orientationchange', settle)
       map.remove()
       mapRef.current = null
-      layers.current = { route: null, markers: [], zones: [] }
+      layers.current = { route: null, markers: [], zones: [], havens: [], safeWalk: null }
     }
   }, [])
 
@@ -153,6 +180,58 @@ export default function MapComponent({ route, heatmapZones = [], center, zoom = 
           .bindPopup(`<b>${z.area_name || 'Risk zone'}</b><br/>Safety risk ${z.risk_score}/100`)
       })
   }, [safeMode, heatmapZones])
+
+  // Safe havens (police / hospital / 24×7 pharmacy) — safe mode only.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    layers.current.havens.forEach((h) => map.removeLayer(h))
+    layers.current.havens = []
+    if (!safeMode || !safeHavens?.length) return
+    const TYPE_LABEL = { police: 'Police station', hospital: 'Hospital (24×7)', pharmacy: '24×7 pharmacy' }
+    // Only the nearest few to the trip (or map centre) so the map stays readable.
+    const ref = havenNear
+      || (coords?.length ? [coords[coords.length - 1][1], coords[coords.length - 1][0]] : null)
+      || (center ? [center[1], center[0]] : CHENNAI)
+    layers.current.havens = safeHavens
+      .filter((h) => Number.isFinite(h.lat) && Number.isFinite(h.lng))
+      .map((h) => ({ ...h, _d: distKm(ref, [h.lat, h.lng]) }))
+      .sort((a, b) => a._d - b._d)
+      .slice(0, maxHavens)
+      .map((h) =>
+        L.marker([h.lat, h.lng], { icon: havenIcon(h.type), zIndexOffset: 500 })
+          .addTo(map)
+          .bindPopup(`<b>${h.name}</b><br/>${TYPE_LABEL[h.type] || 'Safe spot'}`),
+      )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeMode, safeHavens, havenNear, coords, maxHavens])
+
+  // Safe-Walk leg (safe mode only) — the crime-avoiding last-mile path, drawn as
+  // a bold solid emerald line on top of the dashed route so it reads as "this is
+  // the safer way to walk".
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (layers.current.safeWalk) {
+      map.removeLayer(layers.current.safeWalk)
+      layers.current.safeWalk = null
+    }
+    const line = Array.isArray(safeWalk) ? safeWalk : safeWalk?.coordinates
+    if (!safeMode || !line?.length) return
+    const latlngs = line
+      .map((c) => [c[1], c[0]])
+      .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+    if (latlngs.length < 2) return
+    layers.current.safeWalk = L.polyline(latlngs, {
+      color: '#059669',
+      weight: 6,
+      opacity: 0.95,
+      lineCap: 'round',
+      lineJoin: 'round',
+    })
+      .addTo(map)
+      .bindPopup('Safe-Walk — last-mile path that avoids crime zones')
+  }, [safeMode, safeWalk])
 
   return (
     <div className="relative h-full w-full">

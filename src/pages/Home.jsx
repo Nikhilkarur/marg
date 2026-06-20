@@ -10,6 +10,10 @@ import {
   Car,
   ShieldCheck,
   Clock,
+  Mic,
+  Map as MapIcon,
+  Footprints,
+  Check,
 } from 'lucide-react'
 import { AppLayout } from '@/components/marg/AppLayout'
 import MapComponent from '@/components/marg/MapComponent'
@@ -18,15 +22,20 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useSafeMode } from '@/hooks/useSafeMode'
 import { useAuth } from '@/hooks/useAuth'
+import { useT } from '@/lib/i18n'
+import { useGuardian } from '@/hooks/useGuardian'
+import { GuardianToggleCard } from '@/components/marg/GuardianOverlay'
 import { HEATMAP_ZONES } from '@/data/heatmapZones'
+import { withReports } from '@/lib/reports'
+import { useSafeHavens } from '@/hooks/useSafeHavens'
 import { saveTripState, saveRecentTrip, loadRecentTrips } from '@/lib/tripState'
 import { cn, firstName } from '@/lib/utils'
 
 const modes = [
-  { label: 'Bus', icon: Bus, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-  { label: 'Metro', icon: Train, color: 'text-purple-500', bg: 'bg-purple-50' },
-  { label: 'Train', icon: TrainFront, color: 'text-blue-500', bg: 'bg-blue-50' },
-  { label: 'Auto', icon: Car, color: 'text-gold-500', bg: 'bg-gold-50' },
+  { key: 'bus', icon: Bus, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+  { key: 'metro', icon: Train, color: 'text-purple-500', bg: 'bg-purple-50' },
+  { key: 'train', icon: TrainFront, color: 'text-blue-500', bg: 'bg-blue-50' },
+  { key: 'auto', icon: Car, color: 'text-gold-500', bg: 'bg-gold-50' },
 ]
 
 // Sensible Chennai defaults so a demo works without typing.
@@ -37,12 +46,16 @@ export default function Home() {
   const navigate = useNavigate()
   const { safeMode, toggle } = useSafeMode()
   const { user } = useAuth()
+  const { t } = useT()
+  const { armed, status } = useGuardian()
   const name = firstName(user?.user_metadata?.full_name)
+  const guardianLabel = status === 'error' ? t('home.protect.guardianErr') : armed ? t('home.protect.guardianOn') : t('home.protect.guardianStart')
   const [origin, setOrigin] = useState(DEFAULT_ORIGIN)
   const [destination, setDestination] = useState(DEFAULT_DEST)
   const [when, setWhen] = useState('now')
   const [departTime, setDepartTime] = useState('') // "HH:MM" when scheduling
   const [recents] = useState(() => loadRecentTrips())
+  const safeHavens = useSafeHavens(origin)
 
   const swap = () => {
     setOrigin(destination)
@@ -74,24 +87,25 @@ export default function Home() {
   }
 
   return (
-    <AppLayout map={<MapComponent heatmapZones={HEATMAP_ZONES} />}>
-      {/* Greeting */}
-      <div className="animate-fade-up p-6 pb-2">
-        <h1 className="text-2xl font-bold text-marg-text">{name ? `Where to, ${name}?` : 'Where to?'}</h1>
-        <p className="mt-1 text-sm text-marg-muted">
-          Compare metro, train, bus and auto — by time, cost and safety.
-        </p>
+    <AppLayout map={<MapComponent heatmapZones={withReports(HEATMAP_ZONES)} safeHavens={safeHavens} />}>
+      {/* Greeting hero */}
+      <div className="animate-fade-up bg-gradient-to-br from-emerald-600 to-emerald-700 px-6 pb-10 pt-6 text-white">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/90 backdrop-blur">
+          <MapPin className="size-3" /> Chennai
+        </span>
+        <h1 className="mt-2.5 text-2xl font-bold">{name ? t('home.greetingName', { name }) : t('home.greeting')}</h1>
+        <p className="mt-1 text-sm text-white/85">{t('home.subtitle')}</p>
       </div>
 
-      {/* Search card */}
+      {/* Search card — overlaps the hero for a premium, layered feel */}
       <div
-        className="mx-4 mb-4 animate-fade-up rounded-2xl border border-marg-border bg-white p-4 shadow-sm"
+        className="mx-4 -mt-5 mb-4 animate-fade-up rounded-2xl border border-marg-border bg-white p-4 shadow-lg"
         style={{ animationDelay: '60ms' }}
       >
         <LocationSearch
           icon={MapPin}
           iconColor="text-emerald-500"
-          placeholder="Where are you?"
+          placeholder={t('home.from')}
           value={origin}
           onSelect={setOrigin}
         />
@@ -112,7 +126,7 @@ export default function Home() {
         <LocationSearch
           icon={Navigation}
           iconColor="text-gold-500"
-          placeholder="Where to?"
+          placeholder={t('home.to')}
           value={destination}
           onSelect={setDestination}
         />
@@ -124,13 +138,13 @@ export default function Home() {
               type="button"
               onClick={() => pickWhen(w)}
               className={cn(
-                'rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors duration-150',
+                'rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-150',
                 when === w
                   ? 'bg-emerald-600 text-white'
                   : 'border border-marg-border text-marg-muted hover:text-marg-text',
               )}
             >
-              {w}
+              {t(`home.${w}`)}
             </button>
           ))}
           {when === 'schedule' && (
@@ -149,7 +163,7 @@ export default function Home() {
       {recents.length > 0 && (
         <div className="mx-4 mb-4 animate-fade-up" style={{ animationDelay: '120ms' }}>
           <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-marg-muted">
-            <Clock className="size-3.5" /> Recent
+            <Clock className="size-3.5" /> {t('home.recent')}
           </p>
           <div className="flex flex-col gap-2">
             {recents.map((r, i) => (
@@ -175,40 +189,66 @@ export default function Home() {
           const Icon = mode.icon
           return (
             <button
-              key={mode.label}
+              key={mode.key}
               type="button"
-              onClick={() => findRoutes(mode.label.toLowerCase())}
+              onClick={() => findRoutes(mode.key)}
               className="flex flex-col items-center gap-1.5 rounded-xl border border-marg-border bg-white p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-sm active:scale-95"
             >
               <span className={cn('flex size-9 items-center justify-center rounded-full', mode.bg)}>
                 <Icon className={cn('size-5', mode.color)} />
               </span>
-              <span className="text-xs font-medium text-marg-text">{mode.label}</span>
+              <span className="text-xs font-medium text-marg-text">{t(`mode.${mode.key}`)}</span>
             </button>
           )
         })}
       </div>
 
-      {/* Women Safety Mode card */}
+      {/* Women Safety Mode card — when on, shows the protections it activates */}
       <div
         style={{ animationDelay: '240ms' }}
         className={cn(
-          'mx-4 mb-4 flex animate-fade-up items-center gap-3 rounded-xl border p-4 transition-colors duration-200',
+          'mx-4 mb-4 animate-fade-up rounded-xl border p-4 transition-colors duration-200',
           safeMode ? 'border-amber-300 bg-amber-50' : 'border-marg-border bg-white',
         )}
       >
-        <ShieldCheck className={cn('size-8 shrink-0', safeMode ? 'text-gold-500' : 'text-marg-muted')} />
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-marg-text">Women Safety Mode</p>
-          <p className="mt-0.5 text-xs text-marg-muted">Re-routes using real crime data</p>
+        <div className="flex items-center gap-3">
+          <ShieldCheck className={cn('size-8 shrink-0', safeMode ? 'text-gold-500' : 'text-marg-muted')} />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-marg-text">{t('home.safeTitle')}</p>
+            <p className="mt-0.5 text-xs text-marg-muted">{t('home.safeDesc')}</p>
+          </div>
+          <Switch checked={safeMode} onCheckedChange={toggle} tone={safeMode ? 'gold' : 'emerald'} />
         </div>
-        <Switch checked={safeMode} onCheckedChange={toggle} tone={safeMode ? 'gold' : 'emerald'} />
+
+        {safeMode && (
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-amber-200 pt-3">
+            {[
+              { icon: Mic, label: guardianLabel },
+              { icon: MapIcon, label: t('home.protect.crime') },
+              { icon: ShieldCheck, label: t('home.protect.havens') },
+              { icon: Footprints, label: t('home.protect.safeWalk') },
+            ].map((f) => (
+              <div key={f.label} className="flex items-center gap-1.5">
+                <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-600">
+                  <Check className="size-2.5 text-white" strokeWidth={3} />
+                </span>
+                <f.icon className="size-3.5 shrink-0 text-marg-muted" />
+                <span className="text-[11px] font-medium text-marg-text">{f.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* AI Audio Guardian — auto-activates with Safe Mode; manual control here */}
+      <div className="mx-4 mb-4 animate-fade-up" style={{ animationDelay: '270ms' }}>
+        <GuardianToggleCard />
       </div>
 
       {/* CTA */}
       <div className="mx-4 mb-6 animate-fade-up" style={{ animationDelay: '300ms' }}>
         <Button size="lg" className="w-full" onClick={() => findRoutes()}>
-          Find Routes →
+          {t('home.find')}
         </Button>
       </div>
     </AppLayout>

@@ -7,6 +7,8 @@ import Results from '@/pages/Results'
 import MapDetail from '@/pages/MapDetail'
 import Trips from '@/pages/Trips'
 import Profile from '@/pages/Profile'
+import Safety from '@/pages/Safety'
+import TrackView from '@/pages/TrackView'
 
 export default function App() {
   return (
@@ -19,6 +21,9 @@ export default function App() {
       <Route path="/map" element={<ProtectedRoute><MapDetail /></ProtectedRoute>} />
       <Route path="/trips" element={<ProtectedRoute><Trips /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/safety" element={<ProtectedRoute><Safety /></ProtectedRoute>} />
+      {/* Public — a trusted contact opens this from a share link, no login */}
+      <Route path="/track/:id" element={<TrackView />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )

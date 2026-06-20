@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ShieldAlert, ShieldCheck, ChevronRight, Pencil, MapPin, LogOut, Check, X } from 'lucide-react'
+import { ShieldAlert, ShieldCheck, ChevronRight, Pencil, MapPin, LogOut, Check, X, Languages } from 'lucide-react'
 import { AppLayout } from '@/components/marg/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Avatar } from '@/components/ui/avatar'
 import { useSafeMode } from '@/hooks/useSafeMode'
 import { useAuth } from '@/hooks/useAuth'
+import { useT } from '@/lib/i18n'
 import { supabase, supabaseEnabled } from '@/lib/supabase'
 import { loadRecentTrips, saveTripState } from '@/lib/tripState'
-import { initials } from '@/lib/utils'
+import { cn, initials } from '@/lib/utils'
 
 function getSosContact() {
   try {
@@ -18,7 +19,8 @@ function getSosContact() {
   } catch {
     /* ignore */
   }
-  return { name: 'Emergency Contact', number: '9876543210' }
+  // No dummy fallback — an unset contact shows a clear empty state instead.
+  return { name: '', number: '' }
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -27,14 +29,18 @@ export default function Profile() {
   const navigate = useNavigate()
   const { safeMode, toggle } = useSafeMode()
   const { user } = useAuth()
+  const { t, lang, setLanguage } = useT()
   const [contact, setContact] = useState(getSosContact)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: contact.name, number: contact.number })
   const [recents] = useState(() => loadRecentTrips())
 
-  const displayNumber = contact.number?.startsWith('+')
-    ? contact.number
-    : `+91 ${(contact.number || '').replace(/(\d{5})(\d{5})/, '$1 $2')}`
+  const hasContact = !!(contact.number || '').replace(/\D/g, '')
+  const displayNumber = !hasContact
+    ? 'Not set'
+    : contact.number.startsWith('+')
+      ? contact.number
+      : `+91 ${contact.number.replace(/(\d{5})(\d{5})/, '$1 $2')}`
 
   const saveContact = async () => {
     const number = (form.number || '').replace(/[^\d+]/g, '')
@@ -85,6 +91,19 @@ export default function Profile() {
           <p className="text-sm text-marg-muted">{user?.email || 'Demo mode'}</p>
         </div>
 
+        {/* Safety Center entry */}
+        <button
+          onClick={() => navigate('/safety')}
+          className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-gold-200 bg-gold-50 px-4 py-4 text-left transition-colors hover:bg-gold-100"
+        >
+          <ShieldCheck className="size-6 shrink-0 text-gold-500" />
+          <div className="flex-1">
+            <p className="font-semibold text-marg-text">Safety Center</p>
+            <p className="text-xs text-marg-muted">Trusted contacts, helplines, live location & fake call</p>
+          </div>
+          <ChevronRight className="size-5 shrink-0 text-marg-muted" />
+        </button>
+
         {/* Settings */}
         <div className="mb-4 overflow-hidden rounded-2xl border border-marg-border bg-white">
           {/* Emergency SOS contact — editable */}
@@ -124,7 +143,7 @@ export default function Profile() {
             <div className="flex items-center gap-3 px-4 py-4">
               <ShieldAlert className="size-5 shrink-0 text-gold-500" />
               <span className="font-medium text-marg-text">Emergency SOS Contact</span>
-              <span className="ml-auto text-sm text-marg-muted">{displayNumber}</span>
+              <span className={cn('ml-auto text-sm', hasContact ? 'text-marg-muted' : 'font-medium text-gold-600')}>{displayNumber}</span>
               <button aria-label="Edit contact" onClick={() => { setForm({ name: contact.name, number: contact.number }); setEditing(true) }} className="text-emerald-600 hover:text-emerald-700">
                 <Pencil className="size-4" />
               </button>
@@ -135,6 +154,26 @@ export default function Profile() {
             <ShieldCheck className="size-5 shrink-0 text-emerald-500" />
             <span className="font-medium text-marg-text">Women Safety Mode default</span>
             <Switch className="ml-auto" checked={safeMode} onCheckedChange={toggle} tone={safeMode ? 'gold' : 'emerald'} />
+          </div>
+          <div className="h-px bg-marg-border" />
+          <div className="flex items-center gap-3 px-4 py-4">
+            <Languages className="size-5 shrink-0 text-emerald-500" />
+            <span className="font-medium text-marg-text">{t('profile.language')}</span>
+            <div className="ml-auto flex overflow-hidden rounded-full border border-marg-border">
+              {[{ id: 'en', label: 'EN' }, { id: 'ta', label: 'தமிழ்' }].map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => setLanguage(l.id)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm font-medium transition-colors',
+                    lang === l.id ? 'bg-emerald-600 text-white' : 'text-marg-muted hover:text-marg-text',
+                  )}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

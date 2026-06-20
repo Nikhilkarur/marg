@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChevronLeft,
@@ -20,9 +20,14 @@ import { AppLayout } from '@/components/marg/AppLayout'
 import MapComponent from '@/components/marg/MapComponent'
 import { SafetyBadge } from '@/components/marg/SafetyBadge'
 import { TripSafety } from '@/components/marg/TripSafety'
-import { fetchDirections } from '@/lib/api'
+import { ReportUnsafeSpot } from '@/components/marg/ReportUnsafeSpot'
+import { fetchDirections, snapRouteToRoads, safeWalkRoute } from '@/lib/api'
+import { withReports } from '@/lib/reports'
 import { loadTripState } from '@/lib/tripState'
+import { useSafeHavens } from '@/hooks/useSafeHavens'
 import { useSafeMode } from '@/hooks/useSafeMode'
+import { useT } from '@/lib/i18n'
+import { uberLink, olaLink, legEndpoints } from '@/lib/booking'
 import { cn } from '@/lib/utils'
 
 const MODE = {
@@ -74,6 +79,7 @@ export default function MapDetail() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const { safeMode } = useSafeMode()
+  const { t } = useT()
   // Restore from sessionStorage on refresh so we don't silently revert to the
   // Anna Nagar→T.Nagar default (TASK 4 #22).
   const restored = state || loadTripState()
@@ -82,23 +88,51 @@ export default function MapDetail() {
   const origin = restored?.origin
   const destination = restored?.destination
   const [coords, setCoords] = useState(route.coordinates || null)
+  const [safeWalk, setSafeWalk] = useState(null)
+  // Re-merge user reports into the heatmap when a new one is added.
+  const [reportsV, setReportsV] = useState(0)
+  const mapZones = useMemo(() => withReports(zones), [zones, reportsV])
+  // Live safe-havens near the trip (origin, else destination, else Chennai).
+  const havenCenter = origin?.lat != null ? { lat: origin.lat, lng: origin.lng }
+    : destination?.lat != null ? { lat: destination.lat, lng: destination.lng }
+    : { lat: 13.0827, lng: 80.2707 }
+  const safeHavens = useSafeHavens(havenCenter)
 
-  // If we arrived without a polyline, fetch a real one for the map.
+  // Draw a road-following line. If we have a planned route, snap its leg endpoints
+  // to streets (so metro/train legs follow roads, not straight chords); otherwise
+  // (hard refresh with no route) fetch a direct OSRM line between the endpoints.
   useEffect(() => {
-    if (coords?.length) return
-    if (origin && destination) {
-      fetchDirections(origin, destination)
-        .then((line) => line && setCoords(line))
-        .catch(() => {})
+    let cancelled = false
+    if (route.steps?.length) {
+      snapRouteToRoads(route).then((line) => !cancelled && line && setCoords(line)).catch(() => {})
+    } else if (origin && destination) {
+      fetchDirections(origin, destination).then((line) => !cancelled && line && setCoords(line)).catch(() => {})
     }
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Safe-Walk (P3): in Women Safety Mode, take the most significant walking leg
+  // and reroute it around crime zones, then draw that safer path on the map.
+  useEffect(() => {
+    if (!safeMode) { setSafeWalk(null); return }
+    const walks = (route.steps || []).filter((s) => s.mode === 'walk' && s.coordinates?.length >= 2)
+    if (!walks.length) { setSafeWalk(null); return }
+    const leg = walks.reduce((a, b) => ((b.distance_m || 0) > (a.distance_m || 0) ? b : a))
+    const c = leg.coordinates
+    const origin = { lng: c[0][0], lat: c[0][1] }
+    const destination = { lng: c[c.length - 1][0], lat: c[c.length - 1][1] }
+    let cancelled = false
+    safeWalkRoute(origin, destination, zones).then((r) => !cancelled && r && setSafeWalk(r)).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeMode])
 
   const steps = route.steps?.length ? route.steps : DEFAULT_ROUTE.steps
   const showNote = route.representative || route.estimated || steps.some((s) => s.estimated || s.schedule_basis === 'representative')
 
   return (
-    <AppLayout chat map={<MapComponent route={coords} heatmapZones={zones} />}>
+    <AppLayout chat map={<MapComponent route={coords} safeWalk={safeWalk} heatmapZones={mapZones} safeHavens={safeHavens} />}>
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-marg-border p-4">
         <button
@@ -110,7 +144,7 @@ export default function MapDetail() {
           <ChevronLeft className="size-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-marg-text">Route Details</p>
+          <p className="font-semibold text-marg-text">{t('map.routeDetails')}</p>
           {route.depart_at && route.arrive_at && (
             <p className="text-xs text-marg-muted">
               Depart {route.depart_at} · Arrive {route.arrive_at}
@@ -125,24 +159,48 @@ export default function MapDetail() {
         <div className="flex flex-col items-center gap-1">
           <Clock className="size-5 text-emerald-600" />
           <span className="text-lg font-bold text-marg-text">{route.total_time} min</span>
-          <span className="text-xs text-marg-muted">Total time</span>
+          <span className="text-xs text-marg-muted">{t('map.totalTime')}</span>
         </div>
         <div className="flex flex-col items-center gap-1 border-x border-emerald-200">
           <IndianRupee className="size-5 text-emerald-600" />
           <span className="text-lg font-bold text-marg-text">{route.total_fare}</span>
-          <span className="text-xs text-marg-muted">Est. fare</span>
+          <span className="text-xs text-marg-muted">{t('map.estFare')}</span>
         </div>
         <div className="flex flex-col items-center gap-1">
           <Shield className="size-5 text-emerald-600" />
           <span className="text-lg font-bold text-emerald-600">
             {typeof route.safety_score === 'number' ? `${route.safety_score}/100` : '—'}
           </span>
-          <span className="text-xs text-marg-muted">Safety score</span>
+          <span className="text-xs text-marg-muted">{t('map.safetyScore')}</span>
         </div>
       </div>
 
+      {/* Safe-Walk banner (Safe Mode only) — explains the bold green last-mile line */}
+      {safeMode && safeWalk && (
+        <div className="mx-4 mb-2 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+          <p className="text-sm text-marg-text">
+            {safeWalk.rerouted ? (
+              <>
+                <span className="font-semibold">Safe-Walk rerouted your last-mile</span> to avoid{' '}
+                {safeWalk.avoided.length ? safeWalk.avoided.join(', ') : 'higher-risk streets'}. The bold
+                green line is the safer walking path.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold">Safe-Walk checked your last-mile.</span> The fastest walking
+                path already stays clear of known crime zones (green line).
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
       {/* Women-safety actions (Safe Mode only): share trip + arrival check-in */}
       {safeMode && <TripSafety origin={origin} destination={destination} route={route} />}
+
+      {/* Crowd-sourced reporting (Safe Mode only) */}
+      {safeMode && <ReportUnsafeSpot onReported={() => setReportsV((v) => v + 1)} />}
 
       {/* Steps */}
       <div className="px-4 pt-4">
@@ -215,6 +273,34 @@ export default function MapDetail() {
                       )}
                     </div>
                   )}
+
+                  {/* Last-mile cab booking — one-tap hand-off to Uber / Ola with
+                      pickup + drop pre-filled (the "books last-mile transport" bit). */}
+                  {step.mode === 'auto' && (() => {
+                    const ep = legEndpoints(step, origin, destination)
+                    if (!ep) return null
+                    const [pickup, drop] = ep
+                    return (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <a
+                          href={uberLink(pickup, drop)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-full bg-black px-3 py-1 text-[11px] font-semibold text-white transition-transform active:scale-95"
+                        >
+                          <Car className="size-3" /> Book Uber <ExternalLink className="size-3" />
+                        </a>
+                        <a
+                          href={olaLink(pickup, drop)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-full bg-gold-500 px-3 py-1 text-[11px] font-semibold text-white transition-transform active:scale-95"
+                        >
+                          Book Ola <ExternalLink className="size-3" />
+                        </a>
+                      </div>
+                    )
+                  })()}
 
                   {/* Next few departures for this transit leg */}
                   {step.next_departures?.length > 1 && (

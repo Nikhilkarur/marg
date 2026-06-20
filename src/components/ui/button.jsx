@@ -8,9 +8,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm shadow-emerald-600/20 hover:shadow-md hover:shadow-emerald-600/30',
-        gold: 'bg-gold-500 text-white hover:bg-gold-600 shadow-sm shadow-gold-500/20 hover:shadow-md hover:shadow-gold-500/30',
-        danger: 'bg-marg-danger text-white hover:bg-red-600 shadow-sm shadow-red-500/20 hover:shadow-md hover:shadow-red-500/30',
+          'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white hover:from-emerald-600 hover:to-emerald-800 shadow-sm shadow-emerald-600/30 hover:shadow-md hover:shadow-emerald-600/40',
+        gold: 'bg-gradient-to-br from-gold-400 to-gold-600 text-white hover:from-gold-500 hover:to-gold-600 shadow-sm shadow-gold-500/30 hover:shadow-md hover:shadow-gold-500/40',
+        danger: 'bg-gradient-to-br from-red-500 to-red-700 text-white hover:from-red-600 hover:to-red-800 shadow-sm shadow-red-500/30 hover:shadow-md hover:shadow-red-500/40',
         outline:
           'border border-marg-border bg-white text-marg-text hover:bg-gray-50',
         outlineDanger:

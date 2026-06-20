@@ -3,6 +3,7 @@ import { BottomNav } from './BottomNav'
 import { SOSButton } from './SOSButton'
 import { ChatButton } from './ChatButton'
 import { BackendBanner } from './BackendBanner'
+import { GuardianOverlay } from './GuardianOverlay'
 import { useSafeMode } from '@/hooks/useSafeMode'
 import { cn } from '@/lib/utils'
 
@@ -25,7 +26,7 @@ export function AppLayout({ children, map, chat = false, fullWidth = false }) {
         {/* Left panel */}
         <div
           className={cn(
-            'flex w-full flex-col pb-24 transition-colors duration-300 md:pb-0',
+            'flex w-full flex-col pb-32 transition-colors duration-300 md:pb-0',
             fullWidth ? 'md:w-full' : 'md:w-[420px] md:shrink-0',
             !fullWidth && 'md:h-[calc(100dvh-4rem)] md:overflow-y-auto md:border-r md:border-marg-border',
             safeMode ? 'bg-marg-safemode' : 'bg-marg-panel',
@@ -36,7 +37,7 @@ export function AppLayout({ children, map, chat = false, fullWidth = false }) {
 
         {/* Map column */}
         {map && (
-          <div className="order-first h-[280px] w-full md:order-none md:sticky md:top-16 md:h-[calc(100dvh-4rem)] md:flex-1">
+          <div className="order-first h-[210px] w-full md:order-none md:sticky md:top-16 md:h-[calc(100dvh-4rem)] md:flex-1">
             {map}
           </div>
         )}
@@ -46,6 +47,8 @@ export function AppLayout({ children, map, chat = false, fullWidth = false }) {
       {/* Floating actions: SOS + the Marg AI assistant, stacked bottom-right. */}
       <SOSButton />
       <ChatButton />
+      {/* AI Audio Guardian status pill + distress countdown (follows the user). */}
+      <GuardianOverlay />
     </div>
   )
 }
