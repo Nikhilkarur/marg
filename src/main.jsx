@@ -20,3 +20,11 @@ createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+// Register the PWA service worker in production so Marg installs to the home
+// screen and launches fullscreen. Dev is skipped to avoid caching the HMR server.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}

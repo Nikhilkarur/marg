@@ -89,11 +89,11 @@ export default function Home() {
   return (
     <AppLayout map={<MapComponent heatmapZones={withReports(HEATMAP_ZONES)} safeHavens={safeHavens} />}>
       {/* Greeting hero */}
-      <div className="animate-fade-up bg-gradient-to-br from-emerald-600 to-emerald-700 px-6 pb-10 pt-6 text-white">
+      <div className="animate-fade-up bg-gradient-to-br from-emerald-600 to-emerald-700 px-6 pb-10 pt-6 text-white md:px-7 md:pt-8">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/90 backdrop-blur">
           <MapPin className="size-3" /> Chennai
         </span>
-        <h1 className="mt-2.5 text-2xl font-bold">{name ? t('home.greetingName', { name }) : t('home.greeting')}</h1>
+        <h1 className="mt-2.5 text-2xl font-bold md:text-[28px] md:leading-tight">{name ? t('home.greetingName', { name }) : t('home.greeting')}</h1>
         <p className="mt-1 text-sm text-white/85">{t('home.subtitle')}</p>
       </div>
 
