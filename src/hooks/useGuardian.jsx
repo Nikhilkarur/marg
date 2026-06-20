@@ -224,7 +224,22 @@ export function GuardianProvider({ children }) {
 
   const arm = useCallback(async () => {
     // Guard against double-arming (Safe Mode effect + StrictMode double-invoke).
-    if (streamRef.current) return
+    if (streamRef.current || recognitionRef.current) return
+
+    // A phone gives the microphone to ONE consumer at a time. If a safe-word is
+    // set on mobile, let SpeechRecognition own the mic — otherwise our getUserMedia
+    // capture (for the YAMNet scream model) blocks it and the word is never heard
+    // ("worked on web, not phone"). Desktop can run both at once.
+    const isMobile = typeof navigator !== 'undefined' &&
+      (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)')?.matches))
+    if (isMobile && safeWordRef.current) {
+      setArmed(true)
+      setStatus('listening')
+      startVoice()
+      return
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -286,6 +301,18 @@ export function GuardianProvider({ children }) {
     else disarm()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [safeMode])
+
+  // If the safe-word changes while the Guardian is already listening, re-arm so
+  // the mic-ownership mode updates (scream ↔ voice) — lets a user set the word
+  // with Safe Mode already on and have voice start, especially on mobile. Skipped
+  // mid-countdown so we never interrupt an alert.
+  useEffect(() => {
+    if (!armed || statusRef.current !== 'listening') return
+    disarm()
+    const id = setTimeout(() => { if (safeMode) arm() }, 200)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeWord])
 
   useEffect(() => () => { stopAudio(); if (countdownTimerRef.current) clearInterval(countdownTimerRef.current) }, [stopAudio])
 
