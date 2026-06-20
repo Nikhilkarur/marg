@@ -1,0 +1,11 @@
+# Netlify response headers.
+
+# Serve the PWA manifest with the correct MIME (Netlify defaults to octet-stream),
+# so install criteria are met reliably across browsers.
+/manifest.webmanifest
+  Content-Type: application/manifest+json; charset=utf-8
+
+# Never let the service worker go stale in the browser/CDN cache — always
+# revalidate so a new build's SW (and its updated routing) takes effect immediately.
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
