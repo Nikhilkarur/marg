@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useSafeMode } from '@/hooks/useSafeMode'
 import { sendSos } from '@/lib/sos'
 import { loadYamnet, classify, resampleToFrame } from '@/lib/yamnet'
+import { matchScream } from '@/lib/screamPrint'
 
 /**
  * AI Audio Guardian — opt-in, on-device distress detection. Runs only inside
@@ -31,6 +32,10 @@ const SUSTAIN_FRAMES = 32 // heuristic: ~0.5s at 60fps
 const HIGH_BAND_HZ = [1000, 4000]
 const ML_INTERVAL_MS = 700
 const ML_SUSTAIN = 2
+// Fingerprint match (screamPrint.js): cosine-sim threshold (eased by sensitivity)
+// and how many consecutive frames must match before we trigger.
+const PRINT_SIM_BASE = 0.90
+const PRINT_SUSTAIN = 2
 
 export function GuardianProvider({ children }) {
   const { user } = useAuth()
@@ -48,6 +53,7 @@ export function GuardianProvider({ children }) {
   const streamRef = useRef(null)
   const rafRef = useRef(0)
   const sustainRef = useRef(0)
+  const printSustainRef = useRef(0)
   const suppressUntilRef = useRef(0)
   const statusRef = useRef('idle')
   const countdownTimerRef = useRef(null)
@@ -93,6 +99,7 @@ export function GuardianProvider({ children }) {
     suppressUntilRef.current = Date.now() + RETRIGGER_SUPPRESS_MS
     sustainRef.current = 0
     mlSustainRef.current = 0
+    printSustainRef.current = 0
     setLastResult(res)
     setStatus('sent')
     setTimeout(() => setStatus((s) => (s === 'sent' ? 'listening' : s)), 6000)
@@ -157,6 +164,7 @@ export function GuardianProvider({ children }) {
     if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
     sustainRef.current = 0
     mlSustainRef.current = 0
+    printSustainRef.current = 0
     suppressUntilRef.current = Date.now() + 4000
     setStatus((s) => (s === 'countdown' ? 'listening' : s))
   }, [])
@@ -168,7 +176,7 @@ export function GuardianProvider({ children }) {
 
   // Heuristic FFT loop: drives the level meter, and detects until/unless the
   // neural net is ready (then the NN is the primary detector).
-  const loop = useCallback((analyser, freq, hiLo, hiHi) => {
+  const loop = useCallback((analyser, freq, hiLo, hiHi, binHz) => {
     const tick = () => {
       analyser.getByteFrequencyData(freq)
       let sum = 0
@@ -179,11 +187,25 @@ export function GuardianProvider({ children }) {
       const high = hiSum / Math.max(1, hiHi - hiLo + 1)
       setLevel(Math.min(1, overall / 110))
 
-      if (!mlReadyRef.current && statusRef.current === 'listening' && Date.now() > suppressUntilRef.current) {
+      if (statusRef.current === 'listening' && Date.now() > suppressUntilRef.current) {
+        // (1) Generic scream heuristic — loud, sustained high-frequency energy.
+        // Runs alongside YAMNet (not only as its fallback) so a real scream still
+        // fires even if the model is slow to load or conservative on a noisy stage.
         const thresh = 135 - sensRef.current * 50
         const isDistress = high > thresh && overall > 55
         sustainRef.current = isDistress ? sustainRef.current + 1 : Math.max(0, sustainRef.current - 2)
         if (sustainRef.current >= SUSTAIN_FRAMES) { sustainRef.current = 0; startCountdown() }
+
+        // (2) Fingerprint match — locks onto a known scream clip (captured via
+        // /fingerprint.html). High-precision path for a reliable demo trigger.
+        const simThresh = PRINT_SIM_BASE - sensRef.current * 0.12 // sens → 0.90..0.78
+        const sim = matchScream(freq, binHz)
+        if (sim >= simThresh && overall > 40) {
+          printSustainRef.current += 1
+          if (printSustainRef.current >= PRINT_SUSTAIN) { printSustainRef.current = 0; startCountdown() }
+        } else {
+          printSustainRef.current = Math.max(0, printSustainRef.current - 1)
+        }
       }
       rafRef.current = requestAnimationFrame(tick)
     }
@@ -281,7 +303,7 @@ export function GuardianProvider({ children }) {
 
       setArmed(true)
       setStatus('listening')
-      loop(analyser, freq, hiLo, hiHi)
+      loop(analyser, freq, hiLo, hiHi, binHz)
       startMlTimer()
       startVoice()
     } catch {

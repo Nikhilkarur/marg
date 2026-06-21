@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Marg · Scream Fingerprint Tool</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #0b1120; color: #e2e8f0; padding: 24px; line-height: 1.5; }
+  .wrap { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { color: #94a3b8; margin: 0 0 20px; font-size: 14px; }
+  button { font-size: 15px; padding: 12px 18px; border-radius: 10px; border: 0;
+    background: #10b981; color: #04231a; font-weight: 600; cursor: pointer; }
+  button.ghost { background: #1e293b; color: #e2e8f0; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+  .meter { height: 14px; background: #1e293b; border-radius: 8px; overflow: hidden; margin: 10px 0; }
+  .meter > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#10b981,#fbbf24,#ef4444); }
+  .status { font-size: 14px; color: #cbd5e1; min-height: 20px; }
+  .big { font-size: 28px; font-weight: 700; color: #fbbf24; }
+  textarea { width: 100%; height: 120px; background: #020617; color: #93c5fd; border: 1px solid #1e293b;
+    border-radius: 10px; padding: 10px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; box-sizing: border-box; }
+  .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; padding: 18px; margin: 14px 0; }
+  code { background: #1e293b; padding: 1px 6px; border-radius: 5px; }
+  .saved { color: #34d399; font-weight: 600; }
+  ol { padding-left: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎙️ Scream Fingerprint Tool</h1>
+  <p class="sub">Captures the exact spectral signature of your demo scream clip — the speaker, the room, and this mic — so the Guardian fires reliably on stage.</p>
+
+  <div class="card">
+    <ol>
+      <li>Open this on the <b>same device + same origin</b> you'll demo with (e.g. <code>localhost:5173/fingerprint.html</code>).</li>
+      <li>Press <b>Start capture</b>, allow the mic, then <b>play your scream clip out loud</b> near the laptop.</li>
+      <li>It grabs the loudest ~moment and saves a fingerprint. Open the app — the Guardian now matches it.</li>
+    </ol>
+  </div>
+
+  <div class="row">
+    <button id="start">Start capture (6s)</button>
+    <button id="clear" class="ghost">Clear saved fingerprints</button>
+  </div>
+
+  <div class="meter"><i id="bar"></i></div>
+  <div class="status" id="status">Idle.</div>
+  <div class="big" id="count"></div>
+
+  <div class="card">
+    <div>Saved fingerprints in this browser: <b id="savedCount">0</b></div>
+    <p class="sub" style="margin:8px 0 6px">Captured (used automatically at runtime). To bake it permanently into the build, paste this array into <code>SCREAM_PRINTS</code> in <code>src/lib/screamPrint.js</code>:</p>
+    <textarea id="out" readonly placeholder="Fingerprint array appears here after capture..."></textarea>
+    <div class="row"><button id="copy" class="ghost" disabled>Copy array</button></div>
+  </div>
+</div>
+
+<script>
+  // MUST match src/lib/screamPrint.js + useGuardian.jsx analyser config.
+  const BANDS = 32, FMIN = 200, FMAX = 8000, LS_KEY = 'marg_screamprints';
+  const FFT_SIZE = 1024, SMOOTHING = 0.3;
+  const EDGES = (() => {
+    const e = new Float32Array(BANDS + 1);
+    const lmin = Math.log(FMIN), lmax = Math.log(FMAX);
+    for (let i = 0; i <= BANDS; i++) e[i] = Math.exp(lmin + (lmax - lmin) * i / BANDS);
+    return e;
+  })();
+  function bandsFromBytes(freq, binHz) {
+    const out = new Float32Array(BANDS), cnt = new Float32Array(BANDS);
+    for (let i = 0; i < freq.length; i++) {
+      const f = i * binHz;
+      if (f < FMIN || f > FMAX) continue;
+      let b = 0; while (b < BANDS && f > EDGES[b + 1]) b++;
+      if (b >= BANDS) continue;
+      out[b] += freq[i]; cnt[b]++;
+    }
+    for (let b = 0; b < BANDS; b++) if (cnt[b]) out[b] /= cnt[b];
+    let n = 0; for (let b = 0; b < BANDS; b++) n += out[b] * out[b];
+    n = Math.sqrt(n) || 1;
+    for (let b = 0; b < BANDS; b++) out[b] /= n;
+    return out;
+  }
+  function lsPrints() {
+    try { const v = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+    catch { return []; }
+  }
+  function refreshSaved() { document.getElementById('savedCount').textContent = lsPrints().length; }
+
+  const $ = (id) => document.getElementById(id);
+  refreshSaved();
+
+  $('clear').onclick = () => { localStorage.removeItem(LS_KEY); refreshSaved(); $('status').textContent = 'Cleared saved fingerprints.'; };
+
+  $('start').onclick = async () => {
+    $('start').disabled = true;
+    $('status').textContent = 'Requesting mic…';
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { $('status').textContent = 'Mic denied: ' + e.message; $('start').disabled = false; return; }
+
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    analyser.smoothingTimeConstant = SMOOTHING;
+    src.connect(analyser);
+    const binHz = ctx.sampleRate / FFT_SIZE;
+    const freq = new Uint8Array(analyser.frequencyBinCount);
+
+    let bestEnergy = 0, bestFreq = null;
+    const DURATION = 6000, t0 = performance.now();
+    $('status').textContent = '▶️ Play your scream clip NOW…';
+
+    const tick = () => {
+      analyser.getByteFrequencyData(freq);
+      let sum = 0; for (let i = 0; i < freq.length; i++) sum += freq[i];
+      const overall = sum / freq.length;
+      $('bar').style.width = Math.min(100, overall / 1.1) + '%';
+      const remain = Math.max(0, DURATION - (performance.now() - t0));
+      $('count').textContent = (remain / 1000).toFixed(1) + 's';
+      if (overall > bestEnergy) { bestEnergy = overall; bestFreq = freq.slice(); }
+      if (remain > 0) { requestAnimationFrame(tick); }
+      else { finish(); }
+    };
+    const finish = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      ctx.close();
+      $('start').disabled = false;
+      $('count').textContent = '';
+      if (!bestFreq || bestEnergy < 25) {
+        $('status').textContent = '⚠️ Too quiet (peak ' + bestEnergy.toFixed(0) + '). Play it louder / closer and retry.';
+        return;
+      }
+      const print = Array.from(bandsFromBytes(bestFreq, binHz)).map((x) => +x.toFixed(4));
+      const cur = lsPrints(); cur.push(print);
+      localStorage.setItem(LS_KEY, JSON.stringify(cur));
+      refreshSaved();
+      $('out').value = '[' + print.join(', ') + ']';
+      $('copy').disabled = false;
+      $('status').innerHTML = '<span class="saved">✅ Fingerprint captured & saved (peak energy ' + bestEnergy.toFixed(0) + '). The Guardian will now match this clip. Capture it 2–3× for robustness.</span>';
+    };
+    requestAnimationFrame(tick);
+  };
+
+  $('copy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('out').value); $('status').textContent = 'Copied to clipboard.'; }
+    catch { $('out').select(); }
+  };
+</script>
+</body>
+</html>
