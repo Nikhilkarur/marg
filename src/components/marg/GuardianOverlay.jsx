@@ -83,9 +83,11 @@ export function GuardianOverlay() {
  * Mode. Shows a one-tap "test" so a demo never depends on actually screaming.
  */
 export function GuardianToggleCard() {
-  const { armed, status, sensitivity, setSensitivity, toggle, triggerTest } = useGuardian()
+  const { armed, status, level, signal, sensitivity, setSensitivity, toggle, triggerTest } = useGuardian()
   const { t } = useT()
   const error = status === 'error'
+  const pct = Math.round((signal || 0) * 100)
+  const hot = (signal || 0) >= 0.78 - sensitivity * 0.12
 
   return (
     <div
@@ -118,6 +120,29 @@ export function GuardianToggleCard() {
 
       {armed && (
         <div className="mt-3 border-t border-emerald-200 pt-3">
+          {/* Live readout: mic level + detector confidence, so you can see it
+              react and tune the sensitivity until a scream crosses the line. */}
+          <div className="mb-3">
+            <div className="mb-1 flex items-center justify-between text-[11px] font-medium">
+              <span className="flex items-center gap-1 text-marg-muted">
+                <Mic className="size-3" /> Listening
+              </span>
+              <span className={hot ? 'font-bold text-marg-danger' : 'text-marg-muted'}>
+                {hot ? 'Distress!' : `Detection ${pct}%`}
+              </span>
+            </div>
+            {/* mic input level */}
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+              <div className="h-full rounded-full bg-emerald-400 transition-[width] duration-75" style={{ width: `${Math.round((level || 0) * 100)}%` }} />
+            </div>
+            {/* detector confidence */}
+            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+              <div
+                className={`h-full rounded-full transition-[width] duration-75 ${hot ? 'bg-marg-danger' : 'bg-gold-500'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <label htmlFor="g-sens" className="text-xs font-medium text-marg-muted">{t('guardian.sensitivity')}</label>
             <button

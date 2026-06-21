@@ -28,7 +28,7 @@ function loadSafeWord() {
 
 const COUNTDOWN_S = 10
 const RETRIGGER_SUPPRESS_MS = 30000
-const SUSTAIN_FRAMES = 32 // heuristic: ~0.5s at 60fps
+const SUSTAIN_FRAMES = 22 // heuristic: ~0.35s at 60fps
 const HIGH_BAND_HZ = [1000, 4000]
 const ML_INTERVAL_MS = 700
 const ML_SUSTAIN = 2
@@ -43,6 +43,7 @@ export function GuardianProvider({ children }) {
   const [armed, setArmed] = useState(false)
   const [status, setStatus] = useState('idle') // idle | listening | countdown | sending | sent | error
   const [level, setLevel] = useState(0)
+  const [signal, setSignal] = useState(0) // live detector confidence (0..1) for the UI meter
   const [countdown, setCountdown] = useState(COUNTDOWN_S)
   const [sensitivity, setSensitivity] = useState(0.5)
   const [lastResult, setLastResult] = useState(null)
@@ -63,6 +64,7 @@ export function GuardianProvider({ children }) {
   const ringRateRef = useRef(16000)
   const mlTimerRef = useRef(null)
   const mlSustainRef = useRef(0)
+  const mlScoreRef = useRef(0) // latest ML distress prob, for the live meter
   const mlReadyRef = useRef(false)
   const mlBusyRef = useRef(false)
   const recognitionRef = useRef(null)
@@ -89,7 +91,9 @@ export function GuardianProvider({ children }) {
     if (ctxRef.current && ctxRef.current.state !== 'closed') ctxRef.current.close().catch(() => {})
     ctxRef.current = null
     ringRef.current = null
+    mlScoreRef.current = 0
     setLevel(0)
+    setSignal(0)
   }, [])
 
   const fire = useCallback(async () => {
@@ -187,12 +191,15 @@ export function GuardianProvider({ children }) {
       const high = hiSum / Math.max(1, hiHi - hiLo + 1)
       setLevel(Math.min(1, overall / 110))
 
+      // Live confidence for the UI meter: the strongest of the heuristic's
+      // high-band energy, the fingerprint match, and the model's distress prob.
+      let sig = Math.min(1, high / 150)
       if (statusRef.current === 'listening' && Date.now() > suppressUntilRef.current) {
         // (1) Generic scream heuristic — loud, sustained high-frequency energy.
         // Runs alongside YAMNet (not only as its fallback) so a real scream still
         // fires even if the model is slow to load or conservative on a noisy stage.
-        const thresh = 135 - sensRef.current * 50
-        const isDistress = high > thresh && overall > 55
+        const thresh = 115 - sensRef.current * 55 // sens → 115..60
+        const isDistress = high > thresh && overall > 48
         sustainRef.current = isDistress ? sustainRef.current + 1 : Math.max(0, sustainRef.current - 2)
         if (sustainRef.current >= SUSTAIN_FRAMES) { sustainRef.current = 0; startCountdown() }
 
@@ -206,7 +213,9 @@ export function GuardianProvider({ children }) {
         } else {
           printSustainRef.current = Math.max(0, printSustainRef.current - 1)
         }
+        sig = Math.max(sig, sim, mlScoreRef.current || 0)
       }
+      setSignal(sig)
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
@@ -222,6 +231,7 @@ export function GuardianProvider({ children }) {
       try {
         const wave = resampleToFrame(ringRef.current, ringRateRef.current)
         const { distress } = await classify(wave)
+        mlScoreRef.current = distress
         const thresh = 0.5 - sensRef.current * 0.3 // sensitivity → 0.5..0.2
         if (distress >= thresh) {
           mlSustainRef.current += 1
@@ -340,7 +350,7 @@ export function GuardianProvider({ children }) {
 
   return (
     <GuardianContext.Provider
-      value={{ armed, status, level, countdown, sensitivity, setSensitivity, lastResult, safeWord, setSafeWord, voiceSupported, arm, disarm, toggle, cancelCountdown, triggerTest }}
+      value={{ armed, status, level, signal, countdown, sensitivity, setSensitivity, lastResult, safeWord, setSafeWord, voiceSupported, arm, disarm, toggle, cancelCountdown, triggerTest }}
     >
       {children}
     </GuardianContext.Provider>
